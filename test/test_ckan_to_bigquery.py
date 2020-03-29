@@ -128,7 +128,7 @@ def test_resource():
     first = results[0]
     assert first == expected1
 
-def test_field():
+def test_filter():
     # the fields go in the WHERE clause
     field = "REGIONAL_OFFICE_NAME = 'EASTERN'"
     results = ckan_to_bigquery.search_filter(table_name, field)
@@ -136,7 +136,7 @@ def test_field():
     first = results[0]
     assert first == expected3
 
-def test_fields():
+def test_filters():
     # the fields go in the WHERE clause
     field1 = "REGIONAL_OFFICE_NAME = 'EASTERN'"
     field2 = "PRACTICE_CODE = 'D81650'"
