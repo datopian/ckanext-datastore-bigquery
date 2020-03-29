@@ -177,3 +177,7 @@ def test_fields():
     assert len(results) == 10
     first = results[0]
     assert first == expected6
+
+def test_total():
+    results = ckan_to_bigquery.search_raw(table_name)
+    assert len(results) == 10
