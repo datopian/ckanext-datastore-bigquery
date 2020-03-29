@@ -9,8 +9,9 @@ from dateutil.parser import parse as parse_date
 import ckan.lib.navl.dictization_functions
 import ckan.logic as logic
 import ckan.plugins as p
+import ckanext.datastore.logic.schema as dsschema
 
-from ckanext.bigquery import backend
+from ckanext.bigquery.backend.bigquery import DatastoreBigQueryBackend
 
 log = logging.getLogger(__name__)
 _get_or_bust = logic.get_or_bust
@@ -31,11 +32,13 @@ def bigquery_datastore_search(context, data_dict):
     log.info('We are calling from bigquery')
     # Do we need to get the active backend?
     backend = DatastoreBigQueryBackend.get_active_backend()
+    print backend
+
     # Leave schema check last
     schema = context.get('schema', dsschema.datastore_search_schema())
     data_dict, errors = _validate(data_dict, schema, context)
     if errors:
-        raise p.toolkit.ValidationError(errors)
+       raise p.toolkit.ValidationError(errors)
 
     res_id = data_dict['resource_id']
 

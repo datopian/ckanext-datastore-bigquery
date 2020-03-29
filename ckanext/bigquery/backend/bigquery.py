@@ -33,10 +33,10 @@ from sqlalchemy.exc import (ProgrammingError, IntegrityError,
 import ckan.model as model
 import ckan.plugins as plugins
 from ckan.common import config, OrderedDict
+from google.cloud import bigquery
 
 from ckanext.datastore.backend import (
     DatastoreBackend,
-    DatastorePostgresqlBackend,
     DatastoreException,
     _parse_sort_clause
 )
@@ -103,10 +103,19 @@ def identifier(s):
     return u'"' + s.replace(u'"', u'""').replace(u'\0', '') + u'"'
 
 
-class DatastoreBigQueryBackend(DatastorePostgresqlBackend):
+def _connect_to_bigquery():
+    credentials = config.get('google_cloud_credentials', None)
+    project = config.get('project', None)
+
+    client = bigquery.Client(credentials, project)
+
+    return client
+
+
+class DatastoreBigQueryBackend(DatastoreBackend):
     # get bigquery db
     def _get_bigquery_db(self):
-        return _get_engine_from_url(self.read_url)
+        return _connect_to_bigquery()
 
 
     def _log_or_raise(self, message):
