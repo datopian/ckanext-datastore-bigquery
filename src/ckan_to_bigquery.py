@@ -33,3 +33,57 @@ def search_raw(table):
     records = [dict(row) for row in rows]
     return records
 
+def search_limit(table, limit):
+    client = bigquery.Client()
+    projectid = os.environ['BIGQUERY_PROJECT_ID']
+    dataset = 'NHS'
+    query = 'SELECT * FROM `%s.%s.%s` LIMIT %s' % (projectid, dataset, table, limit)
+    query_job = client.query(query)
+    rows = query_job.result()
+    records = [dict(row) for row in rows]
+    return records
+
+def search_sort(table, sort):
+    client = bigquery.Client()
+    projectid = os.environ['BIGQUERY_PROJECT_ID']
+    dataset = 'NHS'
+    query = 'SELECT * FROM `%s.%s.%s` ORDER BY %s LIMIT 2' % (projectid, dataset, table, sort)
+    query_job = client.query(query)
+    rows = query_job.result()
+    records = [dict(row) for row in rows]
+    return records
+
+def search_filter(table, filter):
+    client = bigquery.Client()
+    projectid = os.environ['BIGQUERY_PROJECT_ID']
+    dataset = 'NHS'
+    query = 'SELECT * FROM `%s.%s.%s` WHERE %s LIMIT 10' % (projectid, dataset, table, filter)
+    query_job = client.query(query)
+    rows = query_job.result()
+    records = [dict(row) for row in rows]
+    return records
+
+def search_filters(table, filter1, filter2):
+    client = bigquery.Client()
+    projectid = os.environ['BIGQUERY_PROJECT_ID']
+    dataset = 'NHS'
+    query = 'SELECT * FROM `%s.%s.%s` WHERE %s AND %s LIMIT 10' % (projectid, dataset, table, filter1, filter2)
+    query_job = client.query(query)
+    rows = query_job.result()
+    records = [dict(row) for row in rows]
+    return records
+
+def search_free_text(table, q):
+    # TODO: investigate how we can search through all the columns in BigQuery
+    # We don't need this for now since the client is only going to filer data
+    # not search by it
+    client = bigquery.Client()
+    projectid = os.environ['BIGQUERY_PROJECT_ID']
+    dataset = 'NHS'
+    query = 'SELECT * FROM `%s.%s.%s`' \
+            'WHERE REGEXP_CONTAINS(TO_JSON_STRING(%s), %s)' \
+            'LIMIT 5' % (projectid, dataset, table, table, q)
+    query_job = client.query(query)
+    rows = query_job.result()
+    records = [dict(row) for row in rows]
+    return records
