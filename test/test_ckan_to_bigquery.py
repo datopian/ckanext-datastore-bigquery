@@ -75,6 +75,30 @@ expected3 = {
             'TOTAL_QUANTITY': 28.0, 'UNIDENTIFIED': False, 'YEAR_MONTH': 201401
         }
 
+expected4 = [
+    {'ACTUAL_COST': 3.27919, 'ADDRESS_1': 'ULVERSTON COMM.HEALTH CTR', 'ADDRESS_2': 'STANLEY STREET',
+     'ADDRESS_3': 'ULVERSTON', 'ADDRESS_4': 'CUMBRIA', 'ADQUSAGE': 0.0,
+     'AREA_TEAM_CODE': 'Q49', 'AREA_TEAM_NAME': 'CUMBRIA,NORTHUMB,TYNE & WEAR AREA',
+     'BNF_CHAPTER_PLUS_CODE': '13: Skin', 'BNF_CHEMICAL_SUBSTANCE': '1302010U0',
+     'BNF_CODE': '1302010U0BJAAAN', 'BNF_DESCRIPTION': 'E45 Itch Relief cream',
+     'CHEMICAL_SUBSTANCE_BNF_DESCR': 'Urea', 'ITEMS': 1, 'NIC': 3.47, 'PCO_CODE': '01H00',
+     'PCO_NAME': 'NORTH CUMBRIA CCG', 'POSTCODE': 'LA12 7BT', 'PRACTICE_CODE': 'A82068',
+     'PRACTICE_NAME': 'ULVERSTON COMMUNITY HEALTH CENTRE', 'QUANTITY': 100.0, 'REGIONAL_OFFICE_CODE': 'Y54',
+     'REGIONAL_OFFICE_NAME': 'NORTH OF ENGLAND', 'TOTAL_QUANTITY': 100.0, 'UNIDENTIFIED': False,
+     'YEAR_MONTH': 201401
+     },
+    {'ACTUAL_COST': 52.19338, 'ADDRESS_1': 'COURT THORN SURGERY', 'ADDRESS_2': 'LOW HESKET',
+     'ADDRESS_3': 'CARLISLE', 'ADDRESS_4': 'CUMBRIA', 'ADQUSAGE': 56.0,
+     'AREA_TEAM_CODE': 'Q49', 'AREA_TEAM_NAME': 'CUMBRIA,NORTHUMB,TYNE & WEAR AREA',
+     'BNF_CHAPTER_PLUS_CODE': '04: Central Nervous System', 'BNF_CHEMICAL_SUBSTANCE': '0403040Y0',
+     'BNF_CODE': '0403040Y0AAABAB', 'BNF_DESCRIPTION': 'Duloxetine 60mg gastro-resistant capsules',
+     'CHEMICAL_SUBSTANCE_BNF_DESCR': 'Duloxetine hydrochloride', 'ITEMS': 1, 'NIC': 55.44,
+     'PCO_CODE': '01H00', 'PCO_NAME': 'NORTH CUMBRIA CCG', 'POSTCODE': 'CA4 0HP',
+     'PRACTICE_CODE': 'A82631', 'PRACTICE_NAME': 'COURT THORN SURGERY', 'QUANTITY': 56.0,
+     'REGIONAL_OFFICE_CODE': 'Y54', 'REGIONAL_OFFICE_NAME': 'NORTH OF ENGLAND', 'TOTAL_QUANTITY': 56.0,
+     'UNIDENTIFIED': False, 'YEAR_MONTH': 201401
+     }
+    ]
 
 def test_search_raw():
     results = ckan_to_bigquery.search_raw(table_name)
@@ -125,3 +149,9 @@ def test_fields():
 #     q = "'EASTERN'"
 #     results = ckan_to_bigquery.search_free_text(table_name, q)
 #     assert len(results) == 0
+
+def test_distinct():
+    distinct = 'DISTINCT'
+    results = ckan_to_bigquery.search_distinct(table_name, distinct)
+    assert len(results) == 2
+    assert results == expected4

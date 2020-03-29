@@ -87,3 +87,13 @@ def search_free_text(table, q):
     rows = query_job.result()
     records = [dict(row) for row in rows]
     return records
+
+def search_distinct(table, distinct):
+    client = bigquery.Client()
+    projectid = os.environ['BIGQUERY_PROJECT_ID']
+    dataset = 'NHS'
+    query = 'SELECT %s * FROM `%s.%s.%s` LIMIT 2' % (distinct, projectid, dataset, table)
+    query_job = client.query(query)
+    rows = query_job.result()
+    records = [dict(row) for row in rows]
+    return records
