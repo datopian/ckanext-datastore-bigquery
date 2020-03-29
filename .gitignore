@@ -40,3 +40,7 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+
+# this app!
+.bigquery_test_credentials.json
+
