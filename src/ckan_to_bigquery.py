@@ -97,3 +97,23 @@ def search_distinct(table, distinct):
     rows = query_job.result()
     records = [dict(row) for row in rows]
     return records
+
+def search_field(table, filter):
+    client = bigquery.Client()
+    projectid = os.environ['BIGQUERY_PROJECT_ID']
+    dataset = 'NHS'
+    query = 'SELECT %s FROM `%s.%s.%s` LIMIT 10' % (filter, projectid, dataset, table)
+    query_job = client.query(query)
+    rows = query_job.result()
+    records = [dict(row) for row in rows]
+    return records
+
+def search_fields(table, filter1, filter2):
+    client = bigquery.Client()
+    projectid = os.environ['BIGQUERY_PROJECT_ID']
+    dataset = 'NHS'
+    query = 'SELECT %s, %s FROM `%s.%s.%s` LIMIT 10' % (filter1, filter2, projectid, dataset, table)
+    query_job = client.query(query)
+    rows = query_job.result()
+    records = [dict(row) for row in rows]
+    return records

@@ -100,6 +100,13 @@ expected4 = [
      }
     ]
 
+expected5 = {'REGIONAL_OFFICE_NAME': 'UNIDENTIFIED'}
+
+expected6 = {
+            'PRACTICE_CODE': '-',
+            'REGIONAL_OFFICE_NAME': 'UNIDENTIFIED'
+            }
+
 def test_search_raw():
     results = ckan_to_bigquery.search_raw(table_name)
     assert len(results) == 10
@@ -155,3 +162,18 @@ def test_distinct():
     results = ckan_to_bigquery.search_distinct(table_name, distinct)
     assert len(results) == 2
     assert results == expected4
+
+def test_field():
+    field = "REGIONAL_OFFICE_NAME"
+    results = ckan_to_bigquery.search_field(table_name, field)
+    assert len(results) == 10
+    first = results[0]
+    assert first == expected5
+
+def test_fields():
+    field1 = "REGIONAL_OFFICE_NAME"
+    field2 = "PRACTICE_CODE"
+    results = ckan_to_bigquery.search_fields(table_name, field1, field2)
+    assert len(results) == 10
+    first = results[0]
+    assert first == expected6
