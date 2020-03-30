@@ -1,9 +1,7 @@
 import ckan.plugins as plugins
-import ckan.plugins.toolkit as toolkit
 
-from ckanext.bigquery.logic import action
 from ckanext.bigquery.backend.bigquery import DatastoreBigQueryBackend
-
+from ckanext.datastore.interfaces import IDatastoreBackend
 
 class BigqueryPlugin(plugins.SingletonPlugin):
     plugins.implements(IDatastoreBackend)
@@ -11,6 +9,6 @@ class BigqueryPlugin(plugins.SingletonPlugin):
     # IDatastoreBackend
     def register_backends(self):
         return {
-            'bigquery': DatastoreBigQueryBackend
+            u'bigquery': DatastoreBigQueryBackend,
         }
 

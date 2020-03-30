@@ -10,6 +10,7 @@ import ckan.lib.navl.dictization_functions
 import ckan.logic as logic
 import ckan.plugins as p
 import ckanext.datastore.logic.schema as dsschema
+import ckan.plugins.toolkit as toolkit
 
 from ckanext.bigquery.backend.bigquery import DatastoreBigQueryBackend
 
@@ -18,8 +19,8 @@ _get_or_bust = logic.get_or_bust
 _validate = ckan.lib.navl.dictization_functions.validate
 
 
-@logic.side_effect_free
-def bigquery_datastore_search(context, data_dict):
+@toolkit.chained_action
+def bigquery_datastore_search(action, context, data_dict):
     '''
         Override of datastore_search action call. This action call should take the exact same parameters
         that datastore_search is accepting.
@@ -44,4 +45,4 @@ def bigquery_datastore_search(context, data_dict):
 
     result = None
 
-    return result
+    return action(context, data_dict)
