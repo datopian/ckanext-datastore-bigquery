@@ -1,6 +1,10 @@
 import os
+from ckan.common import config
 
 from google.cloud import bigquery
+
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = config.get('ckanext.bigquery.google_cloud_credentials', None)
+os.environ['BIGQUERY_PROJECT_ID'] = config.get('ckanext.bigquery.project', None)
 
 def search(table):
     results = search_raw(table)
@@ -27,6 +31,7 @@ def search_raw(table):
     client = bigquery.Client()
     projectid = os.environ['BIGQUERY_PROJECT_ID']
     dataset = 'NHS'
+    #table = table['resource_id']
     query = 'SELECT * FROM `%s.%s.%s` LIMIT 10' % (projectid, dataset, table)
     query_job = client.query(query)
     rows = query_job.result()

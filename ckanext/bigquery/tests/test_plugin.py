@@ -50,9 +50,12 @@ class TestBigQueryIDatastoreBackendPlugin():
 
         execute.reset_mock()
         res_id = '201401'
+        project_id = config.get('ckanext.bigquery.project', None)
+        dataset = 'NHS'
+
         # Before exec this we need to implement the search funtion
         helpers.call_action(
             u'datastore_search', resource_id=res_id)
         execute.assert_called_with(
-            u'SELECT * FROM "{0}" LIMIT 10'.format(res_id)
+            u'SELECT * FROM "{0}.{1}.{2}" LIMIT 10'.format(project_id, dataset, res_id)
         )
