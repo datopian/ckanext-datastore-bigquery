@@ -3,6 +3,7 @@ sys.path.insert(0, './src')
 import os
 
 import ckan_to_bigquery
+from google.cloud.bigquery.schema import SchemaField
 
 
 table_name = '201401'
@@ -107,6 +108,36 @@ expected6 = {
             'REGIONAL_OFFICE_NAME': 'UNIDENTIFIED'
             }
 
+schema = [
+            SchemaField('YEAR_MONTH', 'INTEGER', 'NULLABLE', None, ()),
+            SchemaField('REGIONAL_OFFICE_NAME', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('REGIONAL_OFFICE_CODE', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('AREA_TEAM_NAME', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('AREA_TEAM_CODE', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('PCO_NAME', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('PCO_CODE', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('PRACTICE_NAME', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('PRACTICE_CODE', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('ADDRESS_1', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('ADDRESS_2', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('ADDRESS_3', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('ADDRESS_4', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('POSTCODE', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('BNF_CHEMICAL_SUBSTANCE', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('CHEMICAL_SUBSTANCE_BNF_DESCR', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('BNF_CODE', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('BNF_DESCRIPTION', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('BNF_CHAPTER_PLUS_CODE', 'STRING', 'NULLABLE', None, ()),
+            SchemaField('QUANTITY', 'FLOAT', 'NULLABLE', None, ()),
+            SchemaField('ITEMS', 'INTEGER', 'NULLABLE', None, ()),
+            SchemaField('TOTAL_QUANTITY', 'FLOAT', 'NULLABLE', None, ()),
+            SchemaField('ADQUSAGE', 'FLOAT', 'NULLABLE', None, ()),
+            SchemaField('NIC', 'FLOAT', 'NULLABLE', None, ()),
+            SchemaField('ACTUAL_COST', 'FLOAT', 'NULLABLE', None, ()),
+            SchemaField('UNIDENTIFIED', 'BOOLEAN', 'NULLABLE', None, ()),
+        ]
+
+
 def test_search_raw():
     results = ckan_to_bigquery.search_raw(table_name)
     assert len(results) == 10
@@ -181,3 +212,9 @@ def test_fields():
 def test_total():
     results = ckan_to_bigquery.search_raw(table_name)
     assert len(results) == 10
+
+def test_bq_table_schema():
+    result = ckan_to_bigquery.table_schema(table_name)
+    assert len(result) == 26
+    first = result
+    assert first == schema

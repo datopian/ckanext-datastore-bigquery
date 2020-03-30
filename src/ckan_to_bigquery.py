@@ -117,3 +117,13 @@ def search_fields(table, filter1, filter2):
     rows = query_job.result()
     records = [dict(row) for row in rows]
     return records
+
+def table_schema(table):
+    client = bigquery.Client()
+    projectid = os.environ['BIGQUERY_PROJECT_ID']
+    dataset = 'NHS'
+    query = 'SELECT * FROM `%s.%s.%s` LIMIT 10' % (projectid, dataset, table)
+    query_job = client.query(query)
+    rows = query_job.result()
+    schema = rows.schema
+    return schema
