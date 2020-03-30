@@ -2,13 +2,16 @@ import sys
 sys.path.insert(0, './src')
 import os
 
-import ckan_to_bigquery
+import ckan_to_bigquery as ckan2bq
 from google.cloud.bigquery.schema import SchemaField
 
 
-table_name = '201401'
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '.bigquery_test_credentials.json'
-os.environ['BIGQUERY_PROJECT_ID'] = 'bigquerytest-271707'
+
+project_id = 'bigquerytest-271707'
+client = ckan2bq.Client(project_id)
+
+table_name = '201401'
 limit = 5
 sort = 'REGIONAL_OFFICE_NAME'
 
@@ -137,31 +140,30 @@ schema = [
             SchemaField('UNIDENTIFIED', 'BOOLEAN', 'NULLABLE', None, ()),
         ]
 
-
 def test_search_raw():
-    results = ckan_to_bigquery.search_raw(table_name)
+    results = client.search_raw(table_name)
     assert len(results) == 10
     first = results[0]
     assert first == expected1
 
 def test_search():
-    out = ckan_to_bigquery.search(table_name)
+    out = client.search(table_name)
     assert out['result']['total'] == 10
     first = out['result']['records'][0]
     assert first == expected1
 
 def test_search_with_limit():
-    results = ckan_to_bigquery.search_limit(table_name, limit)
+    results = client.search_limit(table_name, limit)
     assert len(results) == 5
 
 def test_search_sort():
-    results = ckan_to_bigquery.search_sort(table_name, sort)
+    results = client.search_sort(table_name, sort)
     assert results == expected2
 
 def test_resource():
     # resource name is in fact the table name
     resource_name = table_name
-    results = ckan_to_bigquery.search_raw(resource_name)
+    results = client.search_raw(resource_name)
     assert len(results) == 10
     first = results[0]
     assert first == expected1
@@ -169,7 +171,7 @@ def test_resource():
 def test_filter():
     # the fields go in the WHERE clause
     field = "REGIONAL_OFFICE_NAME = 'EASTERN'"
-    results = ckan_to_bigquery.search_filter(table_name, field)
+    results = client.search_filter(table_name, field)
     assert len(results) == 10
     first = results[0]
     assert first == expected3
@@ -178,25 +180,25 @@ def test_filters():
     # the fields go in the WHERE clause
     field1 = "REGIONAL_OFFICE_NAME = 'EASTERN'"
     field2 = "PRACTICE_CODE = 'D81650'"
-    results = ckan_to_bigquery.search_filters(table_name, field1, field2)
+    results = client.search_filters(table_name, field1, field2)
     assert len(results) == 10
     first = results[0]
     assert first == expected3
 
 # def test_free_text_search():
 #     q = "'EASTERN'"
-#     results = ckan_to_bigquery.search_free_text(table_name, q)
+#     results = client.search_free_text(table_name, q)
 #     assert len(results) == 0
 
 def test_distinct():
     distinct = 'DISTINCT'
-    results = ckan_to_bigquery.search_distinct(table_name, distinct)
+    results = client.search_distinct(table_name, distinct)
     assert len(results) == 2
     assert results == expected4
 
 def test_field():
     field = "REGIONAL_OFFICE_NAME"
-    results = ckan_to_bigquery.search_field(table_name, field)
+    results = client.search_field(table_name, field)
     assert len(results) == 10
     first = results[0]
     assert first == expected5
@@ -204,17 +206,17 @@ def test_field():
 def test_fields():
     field1 = "REGIONAL_OFFICE_NAME"
     field2 = "PRACTICE_CODE"
-    results = ckan_to_bigquery.search_fields(table_name, field1, field2)
+    results = client.search_fields(table_name, field1, field2)
     assert len(results) == 10
     first = results[0]
     assert first == expected6
 
 def test_total():
-    results = ckan_to_bigquery.search_raw(table_name)
+    results = client.search_raw(table_name)
     assert len(results) == 10
 
 def test_bq_table_schema():
-    result = ckan_to_bigquery.table_schema(table_name)
+    result = client.table_schema(table_name)
     assert len(result) == 26
     first = result
     assert first == schema
