@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import os
 
 from ckan.common import config
 from ckanext.datastore.backend import DatastoreBackend
@@ -29,8 +30,9 @@ class DatastoreBigQueryBackend(DatastoreBackend):
     def search(self, context, data_dict):
         # we need to call bg2ckan lib -> search
         # we need to mock the resource_id
-        resource_id = '201401'
-        return self._engine.search(data_dict)
+        engine = self._get_engine()
+
+        return engine.search(data_dict)
 
     def resource_id_from_alias(self, alias):
         if self.resource_exists(alias):
@@ -38,4 +40,5 @@ class DatastoreBigQueryBackend(DatastoreBackend):
         return False, alias
 
     def resource_exists(self, id):
-        return self._get_engine().execute(u'SELECT * FROM "bigquerytest-271707.NHS.201401" LIMIT 10').fetchone()
+        # TODO: make this more rigorous
+        return True

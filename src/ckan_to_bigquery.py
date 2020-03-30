@@ -6,7 +6,14 @@ class Client(object):
     def __init__(self, project_id):
         self.project_id = project_id
 
-    def search(self, table):
+    def search(self, data_dict):
+        '''
+            Search BigQuery
+            Parameters:
+                data_dict - list of parameters that we need to search by
+        '''
+        table = data_dict['resource_id']
+
         results = self.search_raw(table)
         # TODO: set resource_id, set _links, handle errors, set fields, ...
         out = {

@@ -15,10 +15,7 @@ table_name = '201401'
 limit = 5
 sort = 'REGIONAL_OFFICE_NAME'
 
-def fixture_create():
-    create_table(..., )
-    insert_data(blah)
-
+## TODO: we assume fixtures exist in bq for now - best would be to create them 
 
 expected1 = {
         'ACTUAL_COST': 6.59007,
@@ -147,7 +144,9 @@ def test_search_raw():
     assert first == expected1
 
 def test_search():
-    out = client.search(table_name)
+    out = client.search({
+        'resource_id': table_name
+    })
     assert out['result']['total'] == 10
     first = out['result']['records'][0]
     assert first == expected1

@@ -1,7 +1,6 @@
 """Tests for plugin.py."""
 # encoding: utf-8
 
-import pytest
 from mock import patch, Mock, call
 from nose.tools import (
     assert_equal,
@@ -39,23 +38,32 @@ class TestBigQueryIDatastoreBackendPlugin():
             DatastoreBackend.get_active_backend(),
             DatastoreBigQueryBackend)
 
-    @patch(class_to_patch + u'._get_engine')
-    def test_backend_functionality(self, get_engine):
-        engine = get_engine()
-        execute = engine.execute
-        fetchall = execute().fetchall
-        execute.reset_mock()
-
+    def test_backend_functionality(self):
         DatastoreBackend.set_active_backend(config)
 
-        execute.reset_mock()
         res_id = '201401'
         project_id = config.get('ckanext.bigquery.project', None)
         dataset = 'NHS'
 
-        # Before exec this we need to implement the search funtion
-        helpers.call_action(
-            u'datastore_search', resource_id=res_id)
-        execute.assert_called_with(
-            u'SELECT * FROM "{0}.{1}.{2}" LIMIT 10'.format(project_id, dataset, res_id)
-        )
+        out = helpers.call_action(u'datastore_search', resource_id=res_id)
+        assert out['result']['total'] == 10
+        first = out['result']['records'][0]
+        assert first == expected1
+
+expected1 = {
+        'ACTUAL_COST': 6.59007,
+        'ADDRESS_1': '-', 'ADDRESS_2': '-', 'ADDRESS_3': '-', 'ADDRESS_4': '-',
+        'ADQUSAGE': 0.0, 'AREA_TEAM_CODE': '-', 'AREA_TEAM_NAME': 'UNIDENTIFIED',
+        'BNF_CHAPTER_PLUS_CODE': '20: Dressings',
+        'BNF_CHEMICAL_SUBSTANCE': '2003',
+        'BNF_CODE': '20030100373',
+        'BNF_DESCRIPTION': 'Softpore dressing 10cm x 20cm',
+        'CHEMICAL_SUBSTANCE_BNF_DESCR': 'Wound Management & Other Dressings',
+        'ITEMS': 2, 'NIC': 7.0, 'PCO_CODE': '-', 'PCO_NAME': 'UNIDENTIFIED',
+        'POSTCODE': '-',
+        'PRACTICE_CODE': '-', 'PRACTICE_NAME': 'UNIDENTIFIED DOCTORS',
+        'QUANTITY': 10.0,
+        'REGIONAL_OFFICE_CODE': '-', 'REGIONAL_OFFICE_NAME':
+        'UNIDENTIFIED', 'TOTAL_QUANTITY': 20.0, 'UNIDENTIFIED': True,
+        'YEAR_MONTH': 201401
+    }
