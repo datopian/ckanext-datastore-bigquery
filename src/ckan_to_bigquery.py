@@ -3,8 +3,12 @@ import os
 from google.cloud import bigquery
 
 class Client(object):
-    def __init__(self, project_id):
+    def __init__(self, project_id, dataset):
         self.project_id = project_id
+        self.dataset = dataset
+
+    def _table_id(self, table_name):
+        return '%s.%s.%s' % (self.project_id, self.dataset, table_name)
 
     def search(self, data_dict):
         '''
@@ -12,9 +16,11 @@ class Client(object):
             Parameters:
                 data_dict - list of parameters that we need to search by
         '''
-        table = data_dict['resource_id']
+        resource_id = data_dict.get('resource_id', '')
+        # default for limit is 100
+        limit = data_dict.get('limit', 100)
 
-        results = self.search_raw(table)
+        results = self.search_raw(resource_id)
         # TODO: set resource_id, set _links, handle errors, set fields, ...
         out = {
             "help": "https://demo.ckan.org/api/3/action/help_show?name=datastore_search",
@@ -36,15 +42,13 @@ class Client(object):
 
     def search_raw(self, table):
         client = bigquery.Client()
-        projectid = self.project_id
-        dataset = 'NHS'
-        #table = table['resource_id']
-        query = 'SELECT * FROM `%s.%s.%s` LIMIT 10' % (projectid, dataset, table)
+        query = 'SELECT * FROM `%s` LIMIT 10' % self._table_id(table)
         query_job = client.query(query)
         rows = query_job.result()
         records = [dict(row) for row in rows]
         return records
 
+'''
     def search_limit(self, table, limit):
         client = bigquery.Client()
         projectid = self.project_id
@@ -139,3 +143,4 @@ class Client(object):
         rows = query_job.result()
         schema = rows.schema
         return schema
+'''
