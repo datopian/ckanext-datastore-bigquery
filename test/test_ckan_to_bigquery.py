@@ -12,54 +12,46 @@ dataset = 'nhs_testing'
 client = ckan2bq.Client(project_id, dataset)
 
 table_name = 'ckanext_testing'
-limit = 5
-sort = 'REGIONAL_OFFICE_NAME'
 
 ## TODO: we assume fixtures exist in bq for now - best would be to create them 
 # def create_fixtures()
 
 class TestSearch:
-    def test_search_raw(self):
-        results = client.search_raw(table_name)
-        assert len(results) == 10
-        # results are randomly sorted ...
-        # first = results[0]
-        # assert first['BNF_CODE'] == '0106020I0AAAKAK'
-
     def test_search(self):
         out = client.search({
             'resource_id': table_name
         })
-        assert out['result']['total'] == 10
+        assert out['result']['total'] == 100
         # results are randomly sorted ...
         # first = out['result']['records'][0]
         # assert first == expected1
 
-'''
+    def test_search_raw(self):
+        results = client.search_raw(resource_id=table_name)
+        assert len(results) == 100
+        # results are randomly sorted ...
+        # first = results[0]
+        # assert first['BNF_CODE'] == '0106020I0AAAKAK'
+
     def test_search_with_limit(self):
-        results = client.search_limit(table_name, limit)
+        results = client.search_raw(resource_id=table_name, limit=5)
         assert len(results) == 5
 
     def test_search_sort(self):
-        results = client.search_sort(table_name, sort)
-        assert results == expected2
-
-    def test_resource(self):
-        # resource name is in fact the table name
-        resource_name = table_name
-        results = client.search_raw(resource_name)
-        assert len(results) == 10
-        first = results[0]
-        assert first == expected1
+        # sort = query_dict['sort'] 
+        # https://github.com/ckan/ckan/blob/master/ckanext/datastore/backend/postgres.py#L1253
+        results = client.search_raw(resource_id=table_name, sort='QUANTITY')
+        assert results[0]['QUANTITY'] == 0.2
 
     def test_filter(self):
         # the fields go in the WHERE clause
+        # https://github.com/ckan/ckan/blob/0adbdd778a7569854d74e45f1fc147c2fe26d8d4/ckanext/datastore/backend/postgres.py#L709
         field = "REGIONAL_OFFICE_NAME = 'EASTERN'"
-        results = client.search_filter(table_name, field)
-        assert len(results) == 10
+        results = client.search_raw(resource_id=table_name, field=field)
         first = results[0]
-        assert first == expected3
+        assert first['REGIONAL_OFFICE_NAME']== 'EASTERN'
 
+'''
     def test_filters(self):
         # the fields go in the WHERE clause
         field1 = "REGIONAL_OFFICE_NAME = 'EASTERN'"

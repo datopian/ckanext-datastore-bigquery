@@ -15,19 +15,16 @@ class Client(object):
             Search BigQuery
             Parameters:
                 data_dict - list of parameters that we need to search by
+                TODO: add data_dict = add an example of format
         '''
-        resource_id = data_dict.get('resource_id', '')
-        # default for limit is 100
-        limit = data_dict.get('limit', 100)
-
-        results = self.search_raw(resource_id)
+        results = self.search_raw(data_dict)
         # TODO: set resource_id, set _links, handle errors, set fields, ...
         out = {
             "help": "https://demo.ckan.org/api/3/action/help_show?name=datastore_search",
             "success": True,
             "result": {
                 "include_total": True,
-                "resource_id": "553a4d08-7670-48c2-a994-9e180131b22e",
+                "resource_id": data_dict['resource_id'],
                 "fields": [ ],
                 "records_format": "objects",
                 "records": results,
@@ -40,45 +37,31 @@ class Client(object):
         }
         return out
 
-    def search_raw(self, table):
+    def search_raw(self, data_dict=None, **kwargs):
+        if data_dict:
+            print(data_dict)
+            _kwargs = dict(data_dict)
+        else:
+            _kwargs = kwargs
+        _kwargs['table_id'] = self._table_id(_kwargs['resource_id'])
+        # default for limit is 100
+        _kwargs['limit'] = min(10000, _kwargs.get('limit', 100))
+
+        query = 'SELECT * FROM `{table_id}` '.format(**_kwargs)
+        if 'field' in _kwargs:
+            query += ' WHERE {field} '.format(**_kwargs)
+        if 'sort' in _kwargs:
+            query += ' ORDER BY {sort} '.format(**_kwargs)
+        query +=  ' LIMIT {limit}'.format(**_kwargs)
+        print(query)
+
         client = bigquery.Client()
-        query = 'SELECT * FROM `%s` LIMIT 10' % self._table_id(table)
         query_job = client.query(query)
         rows = query_job.result()
         records = [dict(row) for row in rows]
         return records
 
 '''
-    def search_limit(self, table, limit):
-        client = bigquery.Client()
-        projectid = self.project_id
-        dataset = 'NHS'
-        query = 'SELECT * FROM `%s.%s.%s` LIMIT %s' % (projectid, dataset, table, limit)
-        query_job = client.query(query)
-        rows = query_job.result()
-        records = [dict(row) for row in rows]
-        return records
-
-    def search_sort(self, table, sort):
-        client = bigquery.Client()
-        projectid = self.project_id
-        dataset = 'NHS'
-        query = 'SELECT * FROM `%s.%s.%s` ORDER BY %s LIMIT 2' % (projectid, dataset, table, sort)
-        query_job = client.query(query)
-        rows = query_job.result()
-        records = [dict(row) for row in rows]
-        return records
-
-    def search_filter(self, table, filter):
-        client = bigquery.Client()
-        projectid = self.project_id
-        dataset = 'NHS'
-        query = 'SELECT * FROM `%s.%s.%s` WHERE %s LIMIT 10' % (projectid, dataset, table, filter)
-        query_job = client.query(query)
-        rows = query_job.result()
-        records = [dict(row) for row in rows]
-        return records
-
     def search_filters(self, table, filter1, filter2):
         client = bigquery.Client()
         projectid = self.project_id
