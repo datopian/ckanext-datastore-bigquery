@@ -35,7 +35,7 @@ class DatastoreBigQueryBackend(DatastoreBackend):
         return engine.search(data_dict)
     
     def search_sql(self, context, data_dict):
-        # TODO: try / except
+        # TODO: try / except
         # TODO: timeouts etc
 
         # TODO: restrict table access (??)

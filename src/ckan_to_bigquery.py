@@ -72,8 +72,8 @@ class Client(object):
         '''
         # TODO: limit the number of results to ckan.datastore.search.rows_max + 1
         # (the +1 is so that we know if the results went over the limit or not)
-        # rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
-        # sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max + 1)
+        # rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
+        # sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max + 1)
         query = sql
         query_job = self.bqclient.query(query)
         rows = query_job.result()
