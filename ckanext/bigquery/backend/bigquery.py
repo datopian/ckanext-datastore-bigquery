@@ -26,13 +26,29 @@ class DatastoreBigQueryBackend(DatastoreBackend):
         if self.config.get('debug'):
             log.critical(message)
         else:
-            raise DatastoreException(message)
+            raise Exception(message)
 
     def search(self, context, data_dict):
         # we need to call bg2ckan lib -> search
         # we need to mock the resource_id
         engine = self._get_engine()
         return engine.search(data_dict)
+    
+    def search_sql(self, context, data_dict):
+        # TODO: try / except
+        # TODO: timeouts etc
+
+        # TODO: restrict table access (??)
+        # table_names = datastore_helpers.get_table_names_from_sql(context, sql)
+        # log.debug('Tables involved in input SQL: {0!r}'.format(table_names))
+
+        # if any(t.startswith('pg_') for t in table_names):
+        #    raise toolkit.NotAuthorized({
+        #        'permissions': ['Not authorized to access system tables']
+        #    })
+        # context['check_access'](table_names)
+        engine = self._get_engine()
+        return engine.search_sql(data_dict['sql'])
 
     def resource_id_from_alias(self, alias):
         if self.resource_exists(alias):

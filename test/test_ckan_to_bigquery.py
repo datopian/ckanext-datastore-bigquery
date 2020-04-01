@@ -221,3 +221,9 @@ schema = [
             SchemaField('ACTUAL_COST', 'FLOAT', 'NULLABLE', None, ()),
             SchemaField('UNIDENTIFIED', 'BOOLEAN', 'NULLABLE', None, ()),
         ]
+
+class TestSearchSql:
+    def test_search(self):
+        sql = 'SELECT * FROM %s LIMIT 5' % table_name
+        out = client.search_sql(sql)
+        assert len(out['result']['records']) == 5

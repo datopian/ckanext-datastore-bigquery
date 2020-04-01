@@ -6,6 +6,9 @@ class Client(object):
     def __init__(self, project_id, dataset):
         self.project_id = project_id
         self.dataset = dataset
+        dataset = '%s.%s' % (self.project_id, self.dataset)
+        job_config = bigquery.job.QueryJobConfig(default_dataset=dataset)
+        self.bqclient = bigquery.Client(default_query_job_config=job_config)
 
     def _table_id(self, table_name):
         return '%s.%s.%s' % (self.project_id, self.dataset, table_name)
@@ -38,28 +41,56 @@ class Client(object):
         return out
 
     def search_raw(self, data_dict=None, **kwargs):
+        '''Search bigquery and return raw results.
+        
+        Allow passing a dict or key word arguments
+        '''
         if data_dict:
             print(data_dict)
             _kwargs = dict(data_dict)
         else:
             _kwargs = kwargs
-        _kwargs['table_id'] = self._table_id(_kwargs['resource_id'])
+        _kwargs['table'] = _kwargs['resource_id']
         # default for limit is 100
         _kwargs['limit'] = min(10000, _kwargs.get('limit', 100))
 
-        query = 'SELECT * FROM `{table_id}` '.format(**_kwargs)
+        query = 'SELECT * FROM `{table}` '.format(**_kwargs)
         if 'field' in _kwargs:
             query += ' WHERE {field} '.format(**_kwargs)
         if 'sort' in _kwargs:
             query += ' ORDER BY {sort} '.format(**_kwargs)
         query +=  ' LIMIT {limit}'.format(**_kwargs)
-        print(query)
 
-        client = bigquery.Client()
-        query_job = client.query(query)
+        query_job = self.bqclient.query(query)
         rows = query_job.result()
         records = [dict(row) for row in rows]
         return records
+
+    def search_sql(self, sql):
+        '''
+        NB: table must be full table id ...
+        '''
+        # TODO: limit the number of results to ckan.datastore.search.rows_max + 1
+        # (the +1 is so that we know if the results went over the limit or not)
+        # rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
+        # sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max + 1)
+        query = sql
+        query_job = self.bqclient.query(query)
+        rows = query_job.result()
+        records = [dict(row) for row in rows]
+
+        # TODO: check if results truncated ...
+        # if results.rowcount == rows_max + 1:
+        #    data_dict['records_truncated'] = True
+
+        return {
+                "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
+                "success": "true",
+                "result":{
+                    "records": records,
+                    "fields": []
+                }
+            }
 
 '''
     def search_filters(self, table, filter1, filter2):
