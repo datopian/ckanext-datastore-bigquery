@@ -227,3 +227,15 @@ class TestSearchSql:
         sql = 'SELECT * FROM %s LIMIT 5' % table_name
         out = client.search_sql(sql)
         assert len(out['result']['records']) == 5
+
+    def test_search_where_equals_statement(self):
+        sql = 'select * from {0} where  CHEMICAL_SUBSTANCE_BNF_DESCR = \'Salicylic acid\' '.format(table_name)
+        print(sql)
+        out = client.search_sql(sql)
+        assert len(out['result']['records']) == 16034
+
+    def test_search_where_like_statement(self):
+        sql = 'select * from {0} where  CHEMICAL_SUBSTANCE_BNF_DESCR	like \'%Sodium%\' '.format(table_name)
+        print(sql)
+        out = client.search_sql(sql)
+        assert len(out['result']['records']) == 223287

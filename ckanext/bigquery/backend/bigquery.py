@@ -4,15 +4,18 @@ import os
 
 from ckan.common import config
 from ckanext.datastore.backend import DatastoreBackend
+import ckan.plugins.toolkit as toolkit
 
 from src import ckan_to_bigquery as ckan2bq
-from ckan.common import config
 
 log = logging.getLogger(__name__)
 
 class DatastoreBigQueryBackend(DatastoreBackend):
     def __init__(self):
         self._engine = None
+        # https://github.com/ckan/ckan/issues/5333
+        # Check whether users have disabled datastore_search_sql
+        self.enable_sql_search = toolkit.asbool(config.get('ckan.datastore.sqlsearch.enabled', True))
 
     def _get_engine(self):
         # TODO: how do we want credentials to get passed in via config or env variable ??
