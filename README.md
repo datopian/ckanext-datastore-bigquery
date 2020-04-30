@@ -18,9 +18,7 @@ pip install requirements.txt
 
 You need to get your cloud credentials for the relevant
 service from here: https://cloud.google.com/docs/authentication/getting-started
-Then save them to the file:
-
-`.bigquery_test_credentials.json`
+Then save them to the json file.
 
 
 ### Installation
@@ -32,8 +30,6 @@ Install extension:
 pip install ckanext-datastore-bigquery && \
 pip install google-cloud-bigquery
 ```
-**TODO**:  We need to fix this and read `google-cloud-bigquery` 
-from the repo.
 
 Enable the extension in CKAN by adding to your .ini file:
 
@@ -42,13 +38,17 @@ ckan.plugins = bigquery
 ckan.datastore.write_url = bigquery://id_of_your_bq_project
 ckan.datastore.read_url = bigquery://id_of_your_bq_project
 ckan.datastore.sqlsearch.enabled = True
+ckanext.bigquery.google_cloud_credentials = path_to_your_cloud_credentials_json_file
+ckanext.bigquery.project = id_of_your_bigquery_project
+ckanext.bigquery.dataset id_of_your_bigquery_dataset
+
 ```
 
 ## Running tests
 
-Put the credentials file(taht you created in Prerequisites section):
+Put the credentials file(taht you created in Prerequisites section) as:
 `.bigquery_test_credentials.json`
-at the root of your project:
+at the root of your project.
 
 You can run the tests for standalone instance:
 `pytest test`
