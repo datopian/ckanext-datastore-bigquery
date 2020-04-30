@@ -1,21 +1,58 @@
-## Installation
+# ckanext-datastore-bigquery
 
-Install the requirements
+An extension that enables `datastore_search` and `datastore_search_sql` API queries running against the data stored in Google Cloud BigQuery tables instead of standard CKAN datastore search queries ([ckan datastore api](https://docs.ckan.org/en/2.8/maintaining/datastore.html#the-datastore-api)).
 
-## Tests
 
-To run the tests you need to get your cloud credentials for the relevant
+## Getting Started
+
+You can run the extension like standalone instance on your local machine for development and tests purposes.
+Also, you can use it as a ckan plugin instead of datastore standard plugin.
+
+### Prerequisites
+
+Install the requirements:
+
+```
+pip install requirements.txt
+```
+
+You need to get your cloud credentials for the relevant
 service from here: https://cloud.google.com/docs/authentication/getting-started
+Then save them to the file:
 
-Then save them to here:
+`.bigquery_test_credentials.json`
+
+
+### Installation
+
+You need CKAN instance running (tested with ckan v2.8.2).
+
+Install extension:
+```
+pip install ckanext-datastore-bigquery && \
+pip install google-cloud-bigquery
+```
+**TODO**:  We need to fix this and read `google-cloud-bigquery` 
+from the repo.
+
+Enable the extension in CKAN by adding to your .ini file:
 
 ```
-.bigquery_test_credentials.json
+ckan.plugins = bigquery
+ckan.datastore.write_url = bigquery://id_of_your_bq_project
+ckan.datastore.read_url = bigquery://id_of_your_bq_project
+ckan.datastore.sqlsearch.enabled = True
 ```
 
-Run the tests:
+## Running tests
 
-```
-pytest test
-```
+Put the credentials file(taht you created in Prerequisites section):
+`.bigquery_test_credentials.json`
+at the root of your project:
+
+You can run the tests for standalone instance:
+`pytest test`
+
+Or you can run tests in an integrated ckan plugin:
+`nosetests -v --ckan --with-pylons=test.ini ckanext`
 
