@@ -70,10 +70,17 @@ class Client(object):
         '''
         NB: table must be full table id ...
         '''
-        # TODO: limit the number of results to ckan.datastore.search.rows_max + 1
-        # (the +1 is so that we know if the results went over the limit or not)
-        # rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
-        # sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max + 1)
+        # limit the number of results to ckan.datastore.search.rows_max
+        try:
+             # check rows_max parameter set in CKAN config,
+             # while testing as microlibrary (not as ckan ext) ckan is unknown
+            from ckan.common import config
+            rows_max = int(config.get('ckan.datastore.search.rows_max', 100))
+        except:
+            rows_max = 100 # set defailt rows limit to 100 for testing uses
+        
+        # limit the number of results to return by rows_max
+        sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max)
         query = sql
         query_job = self.bqclient.query(query)
         rows = query_job.result()
