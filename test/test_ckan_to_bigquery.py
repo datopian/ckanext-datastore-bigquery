@@ -7,11 +7,11 @@ from google.cloud.bigquery.schema import SchemaField
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '.bigquery_test_credentials.json'
 
-project_id = 'bigquery-public-data'
-dataset = 'baseball'
+project_id = 'bigquerytest-271707'
+dataset = 'nhs_production'
 client = ckan2bq.Client(project_id, dataset)
 
-table_name = 'games_post_wide'
+table_name = 'EPD_201401'
 
 ## TODO: we assume fixtures exist in bq for now - best would be to create them 
 # def create_fixtures()
@@ -241,10 +241,10 @@ class TestSearchSql:
         assert len(out['result']['records']) == 223287
 
     def test_search_limit(self):
-        # returns 100 records,
-        # ignoring the 'LIMIT 200' in query because we specified limit to 100 
+        # returns 32000 records,
+        # ignoring the 'LIMIT 32100' in query because we specified limit to 32000 
         # in ckan config 'ckan.datastore.search.rows_max'
-        # but limit is more than rows_max so rows_max=100 wins
-        sql = 'SELECT * FROM %s LIMIT 200' % table_name
+        # but limit is more than rows_max so rows_max=32000 wins
+        sql = 'SELECT * FROM %s LIMIT 32100' % table_name
         out = client.search_sql(sql)
-        assert len(out['result']['records']) == 100
+        assert len(out['result']['records']) == 32000
