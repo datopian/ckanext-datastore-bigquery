@@ -75,9 +75,9 @@ class Client(object):
              # check rows_max parameter set in CKAN config,
              # while testing as microlibrary (not as ckan ext) ckan is unknown
             from ckan.common import config
-            rows_max = int(config.get('ckan.datastore.search.rows_max', 100))
+            rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
         except:
-            rows_max = 100 # set defailt rows limit to 100 for testing uses
+            rows_max = 32000 # set default rows limit 
         
         # limit the number of results to return by rows_max
         sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max)
