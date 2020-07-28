@@ -7,6 +7,7 @@ from ckanext.datastore.backend import DatastoreBackend
 import ckan.plugins.toolkit as toolkit
 
 from src import ckan_to_bigquery as ckan2bq
+from src.api_tracker import ga_api_tracker
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class DatastoreBigQueryBackend(DatastoreBackend):
             raise Exception(message)
 
     def search(self, context, data_dict):
+        ga_api_tracker(data_dict['resource_id'])
         # we need to call bg2ckan lib -> search
         # we need to mock the resource_id
         engine = self._get_engine()
