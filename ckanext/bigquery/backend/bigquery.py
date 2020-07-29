@@ -7,7 +7,7 @@ from ckanext.datastore.backend import DatastoreBackend
 import ckan.plugins.toolkit as toolkit
 
 from src import ckan_to_bigquery as ckan2bq
-from src.api_tracker import ga_api_tracker
+from src.api_tracker import ga_api_tracker, ga_search_sql_api_tracker
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ class DatastoreBigQueryBackend(DatastoreBackend):
         return engine.search(data_dict)
     
     def search_sql(self, context, data_dict):
+        ga_search_sql_api_tracker(data_dict['sql'])
         # TODO: try / except
         # TODO: timeouts etc
 
