@@ -1,6 +1,10 @@
 import os
 
 from google.cloud import bigquery
+from api_tracker import tables_in_query
+import logging
+
+log = logging.getLogger(__name__)
 
 class Client(object):
     def __init__(self, project_id, dataset):
@@ -32,8 +36,8 @@ class Client(object):
                 "records_format": "objects",
                 "records": results,
                 "_links": {
-                "start": "/api/3/action/datastore_search?resource_id=553a4d08-7670-48c2-a994-9e180131b22e",
-                "next": "/api/3/action/datastore_search?offset=100&resource_id=553a4d08-7670-48c2-a994-9e180131b22e"
+                "start": "/api/3/action/datastore_search?resource_id="+data_dict['resource_id'],
+                "next": "/api/3/action/datastore_search?offset=100&resource_id="+data_dict['resource_id']
                 },
                 "total": len(results)
             }
@@ -70,7 +74,8 @@ class Client(object):
         '''
         NB: table must be full table id ...
         '''
-        # limit the number of results to ckan.datastore.search.rows_max
+        # limit the number of results to ckan.datastore.search.rows_max + 1
+        # (the +1 is so that we know if the results went over the limit or not)
         try:
              # check rows_max parameter set in CKAN config,
              # while testing as microlibrary (not as ckan ext) ckan is unknown
@@ -79,25 +84,89 @@ class Client(object):
         except:
             rows_max = 32000 # set default rows limit 
         
+
         # limit the number of results to return by rows_max
-        sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max)
+        sql_initial = sql
+        sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max+1)
         query = sql
+        
+        #total_bytes_processed = self.search_sql_dry_run(query)
+        #log.warning("This query: {0} will process {1} bytes.".format(query,total_bytes_processed))
+        
         query_job = self.bqclient.query(query)
-        rows = query_job.result()
+        
+        
+        rows = query_job.result() 
         records = [dict(row) for row in rows]
-
-        # TODO: check if results truncated ...
-        # if results.rowcount == rows_max + 1:
-        #    data_dict['records_truncated'] = True
-
-        return {
+        records_truncated = "false"
+        
+        # check if results truncated ...
+        if len(records) == rows_max + 1:
+            records_truncated = "true"
+            sql_query_job = self.bqclient.query(sql_initial)
+            destination_table = sql_query_job.destination
+            log.warning("destination table: {}".format(destination_table))
+            destination_uri = self.extract_table(destination_table, sql_initial)
+            log.warning("extract job result: {}".format(destination_uri))
+            return {
                 "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
                 "success": "true",
+                "records_truncated": records_truncated,
+                "gc_url": destination_uri,
                 "result":{
                     "records": records,
                     "fields": []
                 }
             }
+        else:
+            return {
+                    "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
+                    "success": "true",
+                    "records_truncated": records_truncated,
+                    #"gc_url": destination_uri,
+                    "result":{
+                        "records": records,
+                        "fields": []
+                    }
+                }
+
+    def extract_table(self, table_ref, sql):
+        # client = bigquery.Client()
+        bucket_name = 'datopian-test'
+        project = "bigquerytest-271707"
+        dataset_id = "nhs_test"
+        table_id = tables_in_query(sql)
+        job_config = bigquery.job.ExtractJobConfig()
+        job_config.compression = bigquery.Compression.GZIP
+
+        destination_uris = "gs://{}/{}".format(bucket_name, table_id+"-*.csv.gz")
+        #dataset_ref = bigquery.DatasetReference(project, dataset_id)
+        #table_ref = dataset_ref.table(table_id)
+
+        extract_job = self.bqclient.extract_table(
+            table_ref,
+            destination_uris,
+            # Location must match that of the source table.
+            location="europe-west2",
+            job_config=job_config
+        )  # API request
+        extract_job.result()  # Waits for job to complete.
+        
+        log.warning(
+            "Exported {}:{}.{} to {}".format(project, dataset_id, table_ref, destination_uris)
+        )
+        return destination_uris
+
+    def search_sql_dry_run(self, query):
+
+        job_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
+        query_job = self.bqclient.query(query, job_config=job_config)
+        # A dry run query completes immediately.
+
+        #records = [dict(row) for row in rows]
+        log.warning("records len: {}".format(query_job.total_bytes_processed))
+        return  query_job.total_bytes_processed
+        
 
 '''
     def search_filters(self, table, filter1, filter2):
