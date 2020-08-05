@@ -98,11 +98,11 @@ class Client(object):
         
         rows = query_job.result() 
         records = [dict(row) for row in rows]
-        records_truncated = "false"
+        
         
         # check if results truncated ...
         if len(records) == rows_max + 1:
-            records_truncated = "true"
+            
             sql_query_job = self.bqclient.query(sql_initial)
             destination_table = sql_query_job.destination
             log.warning("destination table: {}".format(destination_table))
@@ -111,7 +111,7 @@ class Client(object):
             return {
                 "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
                 "success": "true",
-                "records_truncated": records_truncated,
+                "records_truncated": "true",
                 "gc_url": destination_uri,
                 "result":{
                     "records": records,
@@ -122,8 +122,6 @@ class Client(object):
             return {
                     "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
                     "success": "true",
-                    "records_truncated": records_truncated,
-                    #"gc_url": destination_uri,
                     "result":{
                         "records": records,
                         "fields": []
@@ -131,31 +129,27 @@ class Client(object):
                 }
 
     def extract_table(self, table_ref, sql):
-        # client = bigquery.Client()
         bucket_name = 'datopian-test'
         project = "bigquerytest-271707"
         dataset_id = "nhs_test"
         table_id = tables_in_query(sql)
         job_config = bigquery.job.ExtractJobConfig()
         job_config.compression = bigquery.Compression.GZIP
-
-        destination_uris = "gs://{}/{}".format(bucket_name, table_id+"-*.csv.gz")
-        #dataset_ref = bigquery.DatasetReference(project, dataset_id)
-        #table_ref = dataset_ref.table(table_id)
-
+        destination_uris = "gs://{}/{}/{}".format(bucket_name, table_ref.table_id, table_id+"-*.csv.gz")
         extract_job = self.bqclient.extract_table(
             table_ref,
-            destination_uris,
+            destination_uris = [destination_uris],
             # Location must match that of the source table.
             location="europe-west2",
             job_config=job_config
         )  # API request
-        extract_job.result()  # Waits for job to complete.
-        
+        res = extract_job.result()  # Waits for job to complete.
+        res_destination_uris = res.destination_uris
+        log.warning("extract_job result: {}".format(res_destination_uris))
         log.warning(
-            "Exported {}:{}.{} to {}".format(project, dataset_id, table_ref, destination_uris)
+            "Exported {}:{}.{} to {}".format(project, dataset_id, table_ref, res_destination_uris)
         )
-        return destination_uris
+        return res_destination_uris
 
     def search_sql_dry_run(self, query):
 
