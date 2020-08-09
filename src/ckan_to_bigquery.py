@@ -2,6 +2,9 @@ import os
 
 from google.cloud import bigquery
 from api_tracker import tables_in_query
+from google.cloud import storage
+
+from ckan.common import config
 import logging
 
 log = logging.getLogger(__name__)
@@ -79,46 +82,36 @@ class Client(object):
         try:
              # check rows_max parameter set in CKAN config,
              # while testing as microlibrary (not as ckan ext) ckan is unknown
-            from ckan.common import config
             rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
         except:
-            rows_max = 32000 # set default rows limit 
-        
-
-        # limit the number of results to return by rows_max
+            rows_max = 32000 # set default rows limit  
         sql_initial = sql
+        # limit the number of results to return by rows_max
         sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max+1)
         query = sql
-        
-        #total_bytes_processed = self.search_sql_dry_run(query)
-        #log.warning("This query: {0} will process {1} bytes.".format(query,total_bytes_processed))
-        
         query_job = self.bqclient.query(query)
-        
-        
         rows = query_job.result() 
         records = [dict(row) for row in rows]
-        
-        
         # check if results truncated ...
         if len(records) == rows_max + 1:
-            
             sql_query_job = self.bqclient.query(sql_initial)
+            # get temp table containing query result
             destination_table = sql_query_job.destination
             log.warning("destination table: {}".format(destination_table))
-            destination_uri = self.extract_table(destination_table, sql_initial)
-            log.warning("extract job result: {}".format(destination_uri))
+            destination_urls = self.extract_table(destination_table, sql_initial)
+            log.warning("extract job result: {}".format(destination_urls))
             return {
                 "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
                 "success": "true",
                 "records_truncated": "true",
-                "gc_url": destination_uri,
+                "gc_urls": destination_urls,
                 "result":{
                     "records": records,
                     "fields": []
                 }
             }
         else:
+            # do normal
             return {
                     "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
                     "success": "true",
@@ -129,38 +122,41 @@ class Client(object):
                 }
 
     def extract_table(self, table_ref, sql):
-        bucket_name = 'datopian-test'
-        project = "bigquerytest-271707"
-        dataset_id = "nhs_test"
-        table_id = tables_in_query(sql)
+        bucket_name = config.get('ckanext.bigquery.bucket', None)
+        location = config.get('ckanext.bigquery.location', None)
+        table_name = tables_in_query(sql)
         job_config = bigquery.job.ExtractJobConfig()
         job_config.compression = bigquery.Compression.GZIP
-        destination_uris = "gs://{}/{}/{}".format(bucket_name, table_ref.table_id, table_id+"-*.csv.gz")
+        destination_uris = "gs://{}/{}/{}".format(bucket_name, table_ref.table_id, table_name+"-*.csv.gz")
         extract_job = self.bqclient.extract_table(
             table_ref,
             destination_uris = [destination_uris],
             # Location must match that of the source table.
-            location="europe-west2",
+            location=location,
             job_config=job_config
         )  # API request
         res = extract_job.result()  # Waits for job to complete.
         res_destination_uris = res.destination_uris
-        log.warning("extract_job result: {}".format(res_destination_uris))
         log.warning(
-            "Exported {}:{}.{} to {}".format(project, dataset_id, table_ref, res_destination_uris)
+            "Exported {} to {}".format(table_ref, res_destination_uris)
         )
-        return res_destination_uris
+        # tmp table containing query result 
+        prefix = table_ref.table_id+ '/'
+        res_destination_urls = self.retrieve_gc_urls(bucket_name, prefix)   
+        return res_destination_urls
 
-    def search_sql_dry_run(self, query):
+    def retrieve_gc_urls(self, bucket_name, prefix=''):
+        client = storage.Client()
+        objects = client.list_blobs(bucket_name, prefix=prefix)
+        objects_as_files = [ 
+                self._gcs_object_to_file_url(fileinfo, bucket_name) for fileinfo in objects
+            ]
+        return objects_as_files
 
-        job_config = bigquery.QueryJobConfig(dry_run=True, use_query_cache=False)
-        query_job = self.bqclient.query(query, job_config=job_config)
-        # A dry run query completes immediately.
-
-        #records = [dict(row) for row in rows]
-        log.warning("records len: {}".format(query_job.total_bytes_processed))
-        return  query_job.total_bytes_processed
-        
+    def _gcs_object_to_file_url(self, obj, bucket_name):
+        return {
+            'url': 'https://storage.googleapis.com/'+ bucket_name + '/' + obj.name 
+        }  
 
 '''
     def search_filters(self, table, filter1, filter2):
