@@ -3,6 +3,9 @@ import os
 from google.cloud import bigquery
 from api_tracker import tables_in_query
 from google.cloud import storage
+from google.api_core import exceptions
+from google.api_core import retry
+from google.api_core.retry import if_exception_type
 
 from ckan.common import config
 import logging
@@ -88,8 +91,7 @@ class Client(object):
         sql_initial = sql
         # limit the number of results to return by rows_max
         sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max+1)
-        query = sql
-        query_job = self.bqclient.query(query)
+        query_job = self.bqclient.query(sql)
         rows = query_job.result() 
         records = [dict(row) for row in rows]
         # check if results truncated ...
@@ -104,11 +106,7 @@ class Client(object):
                 "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
                 "success": "true",
                 "records_truncated": "true",
-                "gc_urls": destination_urls,
-                "result":{
-                    "records": records,
-                    "fields": []
-                }
+                "gc_urls": destination_urls
             }
         else:
             # do normal
@@ -121,6 +119,7 @@ class Client(object):
                     }
                 }
 
+    @retry.Retry(predicate=if_exception_type(exceptions.NotFound))
     def extract_table(self, table_ref, sql):
         bucket_name = config.get('ckanext.bigquery.bucket', None)
         location = config.get('ckanext.bigquery.location', None)
@@ -128,6 +127,7 @@ class Client(object):
         job_config = bigquery.job.ExtractJobConfig()
         job_config.compression = bigquery.Compression.GZIP
         destination_uris = "gs://{}/{}/{}".format(bucket_name, table_ref.table_id, table_name+"-*.csv.gz")
+        # extract table into Cloud Storage files.
         extract_job = self.bqclient.extract_table(
             table_ref,
             destination_uris = [destination_uris],
@@ -140,11 +140,12 @@ class Client(object):
         log.warning(
             "Exported {} to {}".format(table_ref, res_destination_uris)
         )
-        # tmp table containing query result 
+        # gc blob containing query result prefix 
         prefix = table_ref.table_id+ '/'
+        log.warning("Prefix: {}".format(prefix))
         res_destination_urls = self.retrieve_gc_urls(bucket_name, prefix)   
         return res_destination_urls
-
+       
     def retrieve_gc_urls(self, bucket_name, prefix=''):
         client = storage.Client()
         objects = client.list_blobs(bucket_name, prefix=prefix)
