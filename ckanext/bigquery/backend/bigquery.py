@@ -21,9 +21,10 @@ class DatastoreBigQueryBackend(DatastoreBackend):
     def _get_engine(self):
         # TODO: how do we want credentials to get passed in via config or env variable ??
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = config.get('ckanext.bigquery.google_cloud_credentials', None)
+        read_only_creds = config.get('ckanext.bigquery.google_cloud_credentials_read_only', None)
         project = config.get('ckanext.bigquery.project', None)
         dataset = config.get('ckanext.bigquery.dataset', None)
-        self._engine = ckan2bq.Client(project, dataset)
+        self._engine = ckan2bq.Client(project, dataset, read_only_creds)
         return self._engine
 
     def _log_or_raise(self, message):

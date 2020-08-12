@@ -13,12 +13,13 @@ import logging
 log = logging.getLogger(__name__)
 
 class Client(object):
-    def __init__(self, project_id, dataset):
+    def __init__(self, project_id, dataset, read_only_creds):
         self.project_id = project_id
         self.dataset = dataset
         dataset = '%s.%s' % (self.project_id, self.dataset)
-        job_config = bigquery.job.QueryJobConfig(default_dataset=dataset)
-        self.bqclient = bigquery.Client(default_query_job_config=job_config)
+        self.job_config = bigquery.job.QueryJobConfig(default_dataset=dataset)
+        self.bqclient = bigquery.Client(default_query_job_config=self.job_config)
+        self.bqclient_readonly = bigquery.Client.from_service_account_json(read_only_creds)
 
     def _table_id(self, table_name):
         return '%s.%s.%s' % (self.project_id, self.dataset, table_name)
@@ -71,7 +72,7 @@ class Client(object):
             query += ' ORDER BY {sort} '.format(**_kwargs)
         query +=  ' LIMIT {limit}'.format(**_kwargs)
 
-        query_job = self.bqclient.query(query)
+        query_job = self.bqclient_readonly.query(query, job_config=self.job_config)
         rows = query_job.result()
         records = [dict(row) for row in rows]
         return records
@@ -91,7 +92,7 @@ class Client(object):
         sql_initial = sql
         # limit the number of results to return by rows_max
         sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max+1)
-        query_job = self.bqclient.query(sql)
+        query_job = self.bqclient_readonly.query(sql, job_config=self.job_config)
         rows = query_job.result() 
         records = [dict(row) for row in rows]
         # check if results truncated ...
