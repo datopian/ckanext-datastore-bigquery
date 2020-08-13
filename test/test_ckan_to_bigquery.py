@@ -1,15 +1,19 @@
-#import sys
-#sys.path.insert(0, './src')
+import sys
+sys.path.insert(0, './src')
 import os
 
-from src import ckan_to_bigquery as ckan2bq
+import ckan_to_bigquery as ckan2bq
 from google.cloud.bigquery.schema import SchemaField
 
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '.bigquery_test_credentials.json'
+def script_path():
+    return os.path.dirname(os.path.abspath(__file__))
+
+creds = script_path() + '/google.json'
+read_only_creds = script_path() + '/google_readonly.json'
 
 project_id = 'bigquerytest-271707'
 dataset = 'nhs_production'
-client = ckan2bq.Client(project_id, dataset)
+client = ckan2bq.Client(project_id, dataset, creds, read_only_creds)
 
 table_name = 'EPD_201401'
 
@@ -253,4 +257,4 @@ class TestSearchSql:
         sql = 'SELECT * FROM %s LIMIT 1000000' % table_name
         out = client.search_sql(sql)
         assert out['records_truncated'] == "true"
-        assert out['gc_url'] != ''
+        assert out['gc_urls'] != []
