@@ -84,12 +84,7 @@ class Client(object):
         '''
         # limit the number of results to ckan.datastore.search.rows_max + 1
         # (the +1 is so that we know if the results went over the limit or not)
-        try:
-             # check rows_max parameter set in CKAN config,
-             # while testing as microlibrary (not as ckan ext) ckan is unknown
-            rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
-        except:
-            rows_max = 32000 # set default rows limit  
+        rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
         sql_initial = sql
         # limit the number of results to return by rows_max
         sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max+1)

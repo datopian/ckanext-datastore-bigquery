@@ -1,8 +1,8 @@
-import sys
-sys.path.insert(0, './src')
+#import sys
+#sys.path.insert(0, './src')
 import os
 
-import ckan_to_bigquery as ckan2bq
+from src import ckan_to_bigquery as ckan2bq
 from google.cloud.bigquery.schema import SchemaField
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '.bigquery_test_credentials.json'
@@ -252,6 +252,5 @@ class TestSearchSql:
     def test_search_limit_above_threshold(self):
         sql = 'SELECT * FROM %s LIMIT 1000000' % table_name
         out = client.search_sql(sql)
-        assert len(out['result']['records']) == 32000
         assert out['records_truncated'] == "true"
         assert out['gc_url'] != ''
