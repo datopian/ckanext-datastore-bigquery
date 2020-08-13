@@ -102,7 +102,7 @@ class Client(object):
             # get temp table containing query result
             destination_table = sql_query_job.destination
             log.warning("destination table: {}".format(destination_table))
-            destination_urls = self.extract_table(destination_table, sql_initial)
+            destination_urls = self.extract_query_to_gcs(destination_table, sql_initial)
             log.warning("extract job result: {}".format(destination_urls))
             return {
                 "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
@@ -122,7 +122,16 @@ class Client(object):
                 }
 
     @retry.Retry(predicate=if_exception_type(exceptions.NotFound))
-    def extract_table(self, table_ref, sql):
+    def extract_query_to_gcs(self, table_ref, sql):
+        '''Take query results from temp table and extract to gcs bucket
+        
+        Parameters:
+        table_ref: temp table with the query results
+        sql: sql statement to get table name from
+
+        Returns:
+        res_destination_urls: gcs files public url(s) contain extracted query results
+        '''
         bucket_name = config.get('ckanext.bigquery.bucket', None)
         location = config.get('ckanext.bigquery.location', None)
         table_name = tables_in_query(sql)
