@@ -5,11 +5,15 @@ import os
 import ckan_to_bigquery as ckan2bq
 from google.cloud.bigquery.schema import SchemaField
 
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '.bigquery_test_credentials.json'
+def script_path():
+    return os.path.dirname(os.path.abspath(__file__))
+
+creds = script_path() + '/google.json'
+read_only_creds = script_path() + '/google_readonly.json'
 
 project_id = 'bigquerytest-271707'
 dataset = 'nhs_production'
-client = ckan2bq.Client(project_id, dataset)
+client = ckan2bq.Client(project_id, dataset, creds, read_only_creds)
 
 table_name = 'EPD_201401'
 
@@ -240,11 +244,17 @@ class TestSearchSql:
         out = client.search_sql(sql)
         assert len(out['result']['records']) == 223287
 
-    def test_search_limit(self):
+    def test_search_limit_under_threshold(self):
         # returns 32000 records,
         # ignoring the 'LIMIT 32100' in query because we specified limit to 32000 
         # in ckan config 'ckan.datastore.search.rows_max'
         # but limit is more than rows_max so rows_max=32000 wins
-        sql = 'SELECT * FROM %s LIMIT 32100' % table_name
+        sql = 'SELECT * FROM %s LIMIT 10' % table_name
         out = client.search_sql(sql)
-        assert len(out['result']['records']) == 32000
+        assert len(out['result']['records']) == 10
+    
+    def test_search_limit_above_threshold(self):
+        sql = 'SELECT * FROM %s LIMIT 1000000' % table_name
+        out = client.search_sql(sql)
+        assert out['records_truncated'] == "true"
+        assert out['gc_urls'] != []
