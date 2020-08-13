@@ -13,13 +13,14 @@ import logging
 log = logging.getLogger(__name__)
 
 class Client(object):
-    def __init__(self, project_id, dataset, read_only_creds):
+    def __init__(self, project_id, dataset, creds, read_only_creds):
         self.project_id = project_id
         self.dataset = dataset
         dataset = '%s.%s' % (self.project_id, self.dataset)
         self.job_config = bigquery.job.QueryJobConfig(default_dataset=dataset)
-        self.bqclient = bigquery.Client(default_query_job_config=self.job_config)
+        self.bqclient = bigquery.Client.from_service_account_json(creds)
         self.bqclient_readonly = bigquery.Client.from_service_account_json(read_only_creds)
+        self.storage_client = storage.Client.from_service_account_json(creds)
 
     def _table_id(self, table_name):
         return '%s.%s.%s' % (self.project_id, self.dataset, table_name)
@@ -97,7 +98,7 @@ class Client(object):
         records = [dict(row) for row in rows]
         # check if results truncated ...
         if len(records) == rows_max + 1:
-            sql_query_job = self.bqclient.query(sql_initial)
+            sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
             # get temp table containing query result
             destination_table = sql_query_job.destination
             log.warning("destination table: {}".format(destination_table))
@@ -148,8 +149,8 @@ class Client(object):
         return res_destination_urls
        
     def retrieve_gc_urls(self, bucket_name, prefix=''):
-        client = storage.Client()
-        objects = client.list_blobs(bucket_name, prefix=prefix)
+        #client = storage.Client()
+        objects = self.storage_client.list_blobs(bucket_name, prefix=prefix)
         objects_as_files = [ 
                 self._gcs_object_to_file_url(fileinfo, bucket_name) for fileinfo in objects
             ]
