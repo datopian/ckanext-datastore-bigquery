@@ -93,18 +93,7 @@ class Client(object):
         records = [dict(row) for row in rows]
         # check if results truncated ...
         if len(records) == rows_max + 1:
-            sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
-            # get temp table containing query result
-            destination_table = sql_query_job.destination
-            log.warning("destination table: {}".format(destination_table))
-            destination_urls = self.extract_query_to_gcs(destination_table, sql_initial)
-            log.warning("extract job result: {}".format(destination_urls))
-            return {
-                "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
-                "success": "true",
-                "records_truncated": "true",
-                "gc_urls": destination_urls
-            }
+            return self.write_query_result_to_table(sql_initial)
         else:
             # do normal
             return {
@@ -115,6 +104,21 @@ class Client(object):
                         "fields": []
                     }
                 }
+
+    @retry.Retry(predicate=if_exception_type(exceptions.BadGateway))
+    def write_query_result_to_table(self, sql_initial):
+        sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
+        # get temp table containing query result
+        destination_table = sql_query_job.destination
+        log.warning("destination table: {}".format(destination_table))
+        destination_urls = self.extract_query_to_gcs(destination_table, sql_initial)
+        log.warning("extract job result: {}".format(destination_urls))
+        return {
+            "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
+            "success": "true",
+            "records_truncated": "true",
+            "gc_urls": destination_urls
+        }
 
     @retry.Retry(predicate=if_exception_type(exceptions.NotFound))
     def extract_query_to_gcs(self, table_ref, sql):
