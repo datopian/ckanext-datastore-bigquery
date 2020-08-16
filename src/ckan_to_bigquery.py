@@ -121,7 +121,7 @@ class Client(object):
 
     @retry.Retry(predicate=if_exception_type(exceptions.NotFound, exceptions.BadGateway, 
                                              exceptions.InternalServerError, exceptions.ServiceUnavailable,
-                                             exceptions.GatewayTimeout))
+                                             exceptions.GatewayTimeout), initial=1.0, maximum=60.0, multiplier=2.0, deadline=180.0)
     def extract_query_to_gcs(self, table_ref, sql):
         '''Take query results from temp table and extract to gcs bucket
         
