@@ -105,7 +105,6 @@ class Client(object):
                     }
                 }
 
-    @retry.Retry(predicate=if_exception_type(exceptions.ServerError))
     def write_query_result_to_table(self, sql_initial):
         sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
         # get temp table containing query result
@@ -120,7 +119,9 @@ class Client(object):
             "gc_urls": destination_urls
         }
 
-    @retry.Retry(predicate=if_exception_type(exceptions.NotFound))
+    @retry.Retry(predicate=if_exception_type(exceptions.NotFound, exceptions.BadGateway, 
+                                             exceptions.InternalServerError, exceptions.ServiceUnavailable,
+                                             exceptions.GatewayTimeout))
     def extract_query_to_gcs(self, table_ref, sql):
         '''Take query results from temp table and extract to gcs bucket
         
