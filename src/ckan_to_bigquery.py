@@ -105,6 +105,8 @@ class Client(object):
                     }
                 }
 
+    @retry.Retry(predicate=if_exception_type(exceptions.BadGateway, exceptions.InternalServerError, exceptions.ServiceUnavailable,
+                                             exceptions.GatewayTimeout), initial=1.0, maximum=60.0, multiplier=2.0, deadline=120.0)
     def write_query_result_to_table(self, sql_initial):
         sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
         # get temp table containing query result
