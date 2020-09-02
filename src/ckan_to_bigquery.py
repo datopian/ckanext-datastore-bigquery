@@ -78,10 +78,12 @@ class Client(object):
         records = [dict(row) for row in rows]
         return records
 
-    def search_sql(self, sql):
+    def search_sql_normal(self, sql):
         '''
         NB: table must be full table id ...
         '''
+        log.warning("***** search_sql *****")
+        log.warning("sql = {}".format(sql))
         # limit the number of results to ckan.datastore.search.rows_max + 1
         # (the +1 is so that we know if the results went over the limit or not)
         rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
@@ -93,6 +95,32 @@ class Client(object):
         records = [dict(row) for row in rows]
         # check if results truncated ...
         if len(records) == rows_max + 1:
+           return self.bulk_export(sql_initial)
+        else:
+            # do normal
+            return {
+                    "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
+                    "success": "true",
+                    "result":{
+                        "records": records,
+                        "fields": []
+                    }
+                }
+
+    def search_sql(self, data_dict):
+        # default is_bulk export value
+        is_bulk = False
+        is_bulk = bool('bulk' in data_dict)
+        log.warning("is_bulk - {}".format(is_bulk))
+        if is_bulk:
+            # do bulk export
+            return self.bulk_export(data_dict['sql'])
+        else:
+            log.warning("do standard search_sql")
+            return self.search_sql_normal(data_dict['sql'])
+
+    def bulk_export(self, sql_initial):
+        try:
             sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
             # get temp table containing query result
             destination_table = sql_query_job.destination
@@ -105,16 +133,8 @@ class Client(object):
                 "records_truncated": "true",
                 "gc_urls": destination_urls
             }
-        else:
-            # do normal
-            return {
-                    "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
-                    "success": "true",
-                    "result":{
-                        "records": records,
-                        "fields": []
-                    }
-                }
+        except Exception as ex:
+            log.error("Error: {}".format(str(ex)))
 
     @retry.Retry(predicate=if_exception_type(exceptions.NotFound))
     def extract_query_to_gcs(self, table_ref, sql):

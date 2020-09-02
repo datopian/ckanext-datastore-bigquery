@@ -58,7 +58,8 @@ class DatastoreBigQueryBackend(DatastoreBackend):
         #    })
         # context['check_access'](table_names)
         engine = self._get_engine()
-        return engine.search_sql(data_dict['sql'])
+        return engine.search_sql(data_dict)
+        
 
     def resource_id_from_alias(self, alias):
         if self.resource_exists(alias):
