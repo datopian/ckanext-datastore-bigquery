@@ -32,27 +32,32 @@ class Client(object):
                 data_dict - list of parameters that we need to search by
                 TODO: add data_dict = add an example of format
         '''
-        results = self.search_raw(data_dict)
-        # TODO: set resource_id, set _links, handle errors, set fields, ...
+        include_total = False
+        include_total = bool('include_total' in data_dict) and data_dict.get('include_total', False)
+        bq_table_schema = self.get_bq_table_schema(data_dict)
+        fields = self.table_schema_from_bq_schema(bq_table_schema)
+
+        results = self.search_raw(fields, data_dict)
+
+        if include_total:
+            total = self.get_total_num_of_query_rows(fields, data_dict)
+        else:
+            total = len(results)
         out = {
-            "help": "https://demo.ckan.org/api/3/action/help_show?name=datastore_search",
-            "success": True,
-            "result": {
-                "include_total": True,
-                "resource_id": data_dict['resource_id'],
-                "fields": [ ],
-                "records_format": "objects",
-                "records": results,
-                "_links": {
-                "start": "/api/3/action/datastore_search?resource_id="+data_dict['resource_id'],
-                "next": "/api/3/action/datastore_search?offset=100&resource_id="+data_dict['resource_id']
-                },
-                "total": len(results)
-            }
-        }
+            "include_total": include_total,
+            "resource_id": data_dict['resource_id'],
+            "fields": fields,
+            "records_format": "objects",
+            "records": results,
+            "_links": {
+            "start": "/api/3/action/datastore_search?resource_id="+data_dict['resource_id'],
+            "next": "/api/3/action/datastore_search?offset=100&resource_id="+data_dict['resource_id']
+            },
+            "total": total
+        }  
         return out
 
-    def search_raw(self, data_dict=None, **kwargs):
+    def search_raw(self, fields, data_dict=None, **kwargs):
         '''Search bigquery and return raw results.
         
         Allow passing a dict or key word arguments
@@ -67,16 +72,106 @@ class Client(object):
         _kwargs['limit'] = min(10000, _kwargs.get('limit', 100))
 
         query = 'SELECT * FROM `{table}` '.format(**_kwargs)
-        if 'field' in _kwargs:
-            query += ' WHERE {field} '.format(**_kwargs)
+        #if 'field' in _kwargs:
+        #   query += ' WHERE {field} '.format(**_kwargs)
+        if 'filters' or 'q' in _kwargs:
+            query += ' {0} '.format(self.where_clauses(fields, data_dict))
         if 'sort' in _kwargs:
             query += ' ORDER BY {sort} '.format(**_kwargs)
         query +=  ' LIMIT {limit}'.format(**_kwargs)
+        if 'offset' in _kwargs:
+            query += ' OFFSET {offset}'.format(**_kwargs)
+        log.warning("query - {}".format(query))
 
         query_job = self.bqclient_readonly.query(query, job_config=self.job_config)
         rows = query_job.result()
         records = [dict(row) for row in rows]
         return records
+    
+    def get_total_num_of_query_rows(self, fields, data_dict=None, **kwargs):
+        if data_dict:
+            print(data_dict)
+            _kwargs = dict(data_dict)
+        else:
+            _kwargs = kwargs
+        _kwargs['table'] = _kwargs['resource_id']
+
+        query = 'SELECT * FROM `{table}` '.format(**_kwargs)
+        if 'filters' in _kwargs:
+            log.warning("filters in _kwargs")
+            query += ' {0} '.format(self.where_clauses(fields, data_dict))
+
+        count_sql_string = 'SELECT count(*) FROM ({0}) AS blah ;'.format(query)
+        log.warning("count_sql_string: {}".format(count_sql_string))
+
+        query_job = self.bqclient_readonly.query(count_sql_string, job_config=self.job_config)
+        rows = query_job.result() 
+        records = [dict(row) for row in rows]
+        log.warning("records {}".format(records[0]['f0_']))
+        return records[0]['f0_']
+
+    def get_bq_table_schema(self, data_dict=None, **kwargs):
+        if data_dict:
+            print(data_dict)
+            _kwargs = dict(data_dict)
+        else:
+            _kwargs = kwargs
+        _kwargs['table'] = _kwargs['resource_id']
+
+        query = 'SELECT * FROM `{table}` limit 1 '.format(**_kwargs)
+        
+        query_job = self.bqclient_readonly.query(query, job_config=self.job_config)
+        rows = query_job.result()
+        bq_table_schema = rows.schema
+        return bq_table_schema
+
+    def table_schema_from_bq_schema(self, bq_schema):
+        table_fields = [{"id": field.name, "type": field.field_type} for field in bq_schema]
+        return table_fields
+
+    def get_field_type(self, fields, field):
+        string_types = ['STRING']
+        #num_types = ['INTEGER', 'FLOAT']
+        field_type = [x['type'] for x in fields if x['id'] == field ]
+        log.warning("field_type - {}".format(field_type[0]))
+        if field_type[0] in string_types:
+            return 'string'
+        else:
+            return 'num'
+
+    def where_clauses(self, fields, data_dict):
+        log.warning("FIELDS: {}".format(fields))
+        filters = data_dict.get('filters', {})
+        q = data_dict.get('q')
+        if filters or q:
+            where_str = ' WHERE '
+        else:
+            where_str = ''
+        if filters:
+            where_filters = ''
+            for key, value in filters.iteritems():
+                single_where_statament = '' 
+                log.warning("{0} = {1}".format(key, value))
+                for value_item in value:
+                    if self.get_field_type(fields, key) == 'num':
+                        single_where_statament += '{0} = {1} OR '.format(key, value_item)
+                    else:
+                        single_where_statament += '{0} = "{1}" OR '.format(key, value_item)
+                where_filters += '({0}) AND '.format(single_where_statament[:-3]) 
+            log.warning("where_filters: {}".format(where_filters[:-4]))
+            where_str += where_filters[:-4]
+        # add full-text search where clause
+        if q:
+            where_q = ''
+            for key, value in q.iteritems():
+                if self.get_field_type(fields, key) == 'string':
+                    where_q_str = ' {0} like "{1}%" '.format(key, value[:-2])
+                else:
+                    where_q_str = ' CAST({0} as STRING)  like "{1}%" '.format(key, value[:-2])
+                where_q += where_q_str
+            where_str += where_q
+        log.warning("where_str: {}".format(where_str))
+        return where_str
 
     def search_sql_normal(self, sql):
         '''
