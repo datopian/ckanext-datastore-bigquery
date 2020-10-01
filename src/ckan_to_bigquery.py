@@ -69,9 +69,16 @@ class Client(object):
             _kwargs = kwargs
         _kwargs['table'] = _kwargs['resource_id']
         # default for limit is 100
-        _kwargs['limit'] = min(10000, _kwargs.get('limit', 100))
-
-        query = 'SELECT * FROM `{table}` '.format(**_kwargs)
+        _kwargs['limit'] =  _kwargs.get('limit', 100)
+        if 'distinct' in _kwargs:
+            distinct = 'DISTINCT'
+        else:
+            distinct = ''
+        if 'fields' in _kwargs:
+            query = 'SELECT {0} {fields} '.format(distinct, **_kwargs)
+        else:
+            query = 'SELECT * '
+        query += ' FROM `{table}` '.format(**_kwargs)
         #if 'field' in _kwargs:
         #   query += ' WHERE {field} '.format(**_kwargs)
         if 'filters' or 'q' in _kwargs:
@@ -151,7 +158,7 @@ class Client(object):
             where_filters = ''
             for key, value in filters.iteritems():
                 single_where_statament = '' 
-                log.warning("{0} = {1}".format(key, value))
+                log.warning("filter: {0} = {1}".format(key, value))
                 for value_item in value:
                     if self.get_field_type(fields, key) == 'num':
                         single_where_statament += '{0} = {1} OR '.format(key, value_item)
