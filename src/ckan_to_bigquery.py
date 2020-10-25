@@ -34,10 +34,19 @@ class Client(object):
         '''
         include_total = False
         include_total = bool('include_total' in data_dict) and data_dict.get('include_total', False)
-        bq_table_schema = self.get_bq_table_schema(data_dict)
+        bq_table_schema = self.get_bq_table_schema(data_dict)        
         fields = self.table_schema_from_bq_schema(bq_table_schema)
 
-        results = self.search_raw(fields, data_dict)
+        query_fields = []
+        if len(data_dict.get('fields', [])) > 0:
+            
+            data_fields = data_dict.get('fields')
+            for x in fields:
+                if x['id'] in data_fields:
+                    field = {'id' : x['id'], 'type' : x['type']}
+                    query_fields.append(field)
+
+        results = self.search_raw(fields, query_fields, data_dict)
 
         if include_total:
             total = self.get_total_num_of_query_rows(fields, data_dict)
@@ -57,7 +66,7 @@ class Client(object):
         }  
         return out
 
-    def search_raw(self, fields, data_dict=None, **kwargs):
+    def search_raw(self, fields, query_fields, data_dict=None, **kwargs):
         '''Search bigquery and return raw results.
         
         Allow passing a dict or key word arguments
@@ -74,8 +83,13 @@ class Client(object):
             distinct = 'DISTINCT'
         else:
             distinct = ''
-        if 'fields' in _kwargs:
-            query = 'SELECT {0} {fields} '.format(distinct, **_kwargs)
+        if 'fields' in _kwargs and len(query_fields) > 0:
+            ## string
+            string_fields = ''
+            for field in query_fields:
+                string_fields += str(field['id'])
+                string_fields += ','
+            query = 'SELECT {0} {1} '.format(distinct, string_fields, **_kwargs)
         else:
             query = 'SELECT * '
         query += ' FROM `{table}` '.format(**_kwargs)
