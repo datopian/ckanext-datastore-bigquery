@@ -34,8 +34,14 @@ class Client(object):
         '''
         include_total = False
         include_total = bool('include_total' in data_dict) and data_dict.get('include_total', False)
-        bq_table_schema = self.get_bq_table_schema(data_dict)        
-        fields = self.table_schema_from_bq_schema(bq_table_schema)
+
+        # Fetching the metadata of the table from dataset for the schema and total count
+        # Will reduce the API calls by 2 for each call to datastore_search
+
+        dataset_ref = self.bqclient_readonly.dataset(self.dataset, project=self.project_id)
+        table_ref = dataset_ref.table(data_dict['resource_id'])
+        table_meta_data = self.bqclient_readonly.get_table(table_ref)  # API call
+        fields = self.table_schema_from_bq_schema(table_meta_data.schema)
 
         query_fields = []
         if len(data_dict.get('fields', [])) > 0:
@@ -49,7 +55,7 @@ class Client(object):
         results = self.search_raw(fields, query_fields, data_dict)
 
         if include_total:
-            total = self.get_total_num_of_query_rows(fields, data_dict)
+            total = table_meta_data.num_rows
         else:
             total = len(results)
         out = {
@@ -63,7 +69,7 @@ class Client(object):
             "next": "/api/3/action/datastore_search?offset=100&resource_id="+data_dict['resource_id']
             },
             "total": total
-        }  
+        }
         return out
 
     def search_raw(self, fields, query_fields, data_dict=None, **kwargs):
