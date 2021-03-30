@@ -228,16 +228,23 @@ class Client(object):
         # limit the number of results to ckan.datastore.search.rows_max + 1
         # (the +1 is so that we know if the results went over the limit or not)
         rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
+        self.log_data['api_call_type'] = "dataexplorer-filtered-download"
+
         sql_initial = sql
         # limit the number of results to return by rows_max
         sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max+1)
+
+        log.warning("query - {}".format(sql))
+        self.log_data['query'] = sql
         query_job = self.bqclient_readonly.query(sql, job_config=self.job_config)
         rows = query_job.result() 
+        self.log_data['job_details'] = query_job._properties.get('statistics')
         records = [dict(row) for row in rows]
         # check if results truncated ...
         if len(records) == rows_max + 1:
            return self.bulk_export(sql_initial)
         else:
+            self.create_egress_log()
             # do normal
             return {
                     "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
@@ -251,6 +258,9 @@ class Client(object):
     def search_sql(self, data_dict):
         # default is_bulk export value
         is_bulk = False
+        log.warning("Data_dict {}".format(data_dict))
+        if data_dict.get('resource_id'):
+            self.resource_details['big_query_resource_name'] = data_dict.get('resource_id')
         is_bulk = bool('bulk' in data_dict)
         log.warning("is_bulk - {}".format(is_bulk))
         if is_bulk:
@@ -262,12 +272,18 @@ class Client(object):
 
     def bulk_export(self, sql_initial):
         try:
+            self.log_data['query'] = sql_initial
             sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
             # get temp table containing query result
+            sql_query_job.result() 
             destination_table = sql_query_job.destination
             log.warning("destination table: {}".format(destination_table))
             destination_urls = self.extract_query_to_gcs(destination_table, sql_initial)
             log.warning("extract job result: {}".format(destination_urls))
+            
+            self.log_data['job_details'] = sql_query_job._properties.get('statistics')
+            self.log_data['api_call_type'] = "dataexplorer-bulk-download"
+            self.create_egress_log()
             return {
                 "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
                 "success": "true",
