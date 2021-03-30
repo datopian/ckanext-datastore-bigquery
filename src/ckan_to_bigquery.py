@@ -7,8 +7,10 @@ from google.api_core import exceptions
 from google.api_core import retry
 from google.api_core.retry import if_exception_type
 
-from ckan.common import config
+from ckan.common import config, request
+import ckan.plugins.toolkit as toolkit
 import logging
+import datetime
 
 log = logging.getLogger(__name__)
 
@@ -16,6 +18,8 @@ class Client(object):
     def __init__(self, project_id, dataset, creds, read_only_creds):
         self.project_id = project_id
         self.dataset = dataset
+        self.log_data = {}
+        self.resource_details = {}
         dataset = '%s.%s' % (self.project_id, self.dataset)
         self.job_config = bigquery.job.QueryJobConfig(default_dataset=dataset)
         self.bqclient = bigquery.Client.from_service_account_json(creds)
@@ -40,9 +44,23 @@ class Client(object):
 
         dataset_ref = self.bqclient_readonly.dataset(self.dataset, project=self.project_id)
         table_ref = dataset_ref.table(data_dict['resource_id'])
+        start = str(datetime.datetime.now())
         table_meta_data = self.bqclient_readonly.get_table(table_ref)  # API call
+        log.warning("table_meta_data {}".format(table_meta_data))
         fields = self.table_schema_from_bq_schema(table_meta_data.schema)
+        log.warning('Data_dict {}'.format(data_dict.get('__extras')))
+        if '__extras' in data_dict:
+            self.log_data['api_call_type'] = data_dict.get('__extras').get('api_call_type')
+        self.resource_details['big_query_resource_name'] = data_dict.get('resource_id')
 
+        end = str(datetime.datetime.now())
+        schema_data = {
+            "start": start,
+            "end": end,
+            "total_count": table_meta_data.num_rows,
+            "table_size": table_meta_data.num_bytes
+        }
+        self.create_egress_log(schema_data=schema_data)
         query_fields = []
         if len(data_dict.get('fields', [])) > 0:
             
@@ -53,11 +71,11 @@ class Client(object):
                     query_fields.append(field)
 
         results = self.search_raw(fields, query_fields, data_dict)
-
         if include_total:
             total = table_meta_data.num_rows
         else:
             total = len(results)
+        self.create_egress_log()
         out = {
             "include_total": include_total,
             "resource_id": data_dict['resource_id'],
@@ -109,9 +127,10 @@ class Client(object):
         if 'offset' in _kwargs:
             query += ' OFFSET {offset}'.format(**_kwargs)
         log.warning("query - {}".format(query))
-
+        self.log_data['query'] = query
         query_job = self.bqclient_readonly.query(query, job_config=self.job_config)
         rows = query_job.result()
+        self.log_data['job_details'] = query_job._properties.get('statistics')
         records = [dict(row) for row in rows]
         return records
     
@@ -305,7 +324,66 @@ class Client(object):
     def _gcs_object_to_file_url(self, obj, bucket_name):
         return {
             'url': 'https://storage.googleapis.com/'+ bucket_name + '/' + obj.name 
-        }  
+        }
+
+
+    def create_egress_log(self, schema_data=None):
+        log_data = self.log_data
+        # Get Environ for the IP, user-agent and Remote User
+        environ = request.environ
+        user = environ.get('REMOTE_USER', None)
+        ip = environ.get('REMOTE_ADDR', None)
+        agent = environ.get('HTTP_USER_AGENT',None)
+        if not schema_data:
+            start_time = log_data.get('job_details').get('startTime')
+            end_time = log_data.get('job_details').get('endTime')
+            total_bytes_processed = log_data.get('job_details').get('query').get('totalBytesProcessed')
+            total_bytes_billed = log_data.get('job_details').get('query').get('totalBytesBilled')
+            cache_hit = log_data.get('job_details').get('query').get('cacheHit')
+            data = {
+                "timestamp": str(datetime.datetime.now()),
+                "schema_and_count_call": False,
+                "log_egress":{
+                    "ip": ip,
+                    "http_user_agent": agent,
+                    "remote_user": user,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "query_executed": log_data.get('query'),
+                    "total_bytes_processed":total_bytes_processed,
+                    "total_bytes_billed":total_bytes_billed,
+                    "resource_name": self.resource_details.get('big_query_resource_name'),
+                    "big_query_resource_name":self.resource_details.get('big_query_resource_name'),
+                    "cache_hit": cache_hit,
+                    "api_call_type": log_data.get('api_call_type', 'direct-api')
+                }
+
+            } 
+        else:
+            data = {
+                "timestamp": str(datetime.datetime.now()),
+                "schema_and_count_call": True,
+                "log_egress":{
+                    "ip": ip,
+                    "http_user_agent": agent,
+                    "remote_user": user,
+                    "start_time": schema_data.get('start'),
+                    "end_time": schema_data.get('start'),
+                    "query_executed": None,
+                    "total_bytes_processed": None,
+                    "total_bytes_billed": None,
+                    "resource_name": self.resource_details.get('big_query_resource_name'),
+                    "big_query_resource_name":self.resource_details.get('big_query_resource_name'),
+                    "cache_hit": None,
+                    "total_count": schema_data.get('total_count'),
+                    "table_size": schema_data.get('table_size'),
+                    "api_call_type": log_data.get('api_call_type', 'direct-api')
+                }
+
+            } 
+        log_name = config.get('egress_log_name', 'nhs-egress-log')
+        log.warning("{} {}".format(log_name, data))
+
 
 '''
     def search_filters(self, table, filter1, filter2):
