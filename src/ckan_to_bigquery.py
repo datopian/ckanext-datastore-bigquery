@@ -348,7 +348,10 @@ class Client(object):
         # Get Environ for the IP, user-agent and Remote User
         environ = request.environ
         user = environ.get('REMOTE_USER', None)
-        ip = environ.get('REMOTE_ADDR', None)
+        if 'HTTP_X_REAL_IP' in environ:
+            ip = environ.get('HTTP_X_REAL_IP', None)
+        else:
+            ip = environ.get('REMOTE_ADDR', None)
         agent = environ.get('HTTP_USER_AGENT',None)
         if not schema_data:
             start_time = log_data.get('job_details').get('startTime')
