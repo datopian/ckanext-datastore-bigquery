@@ -342,6 +342,12 @@ class Client(object):
             'url': 'https://storage.googleapis.com/'+ bucket_name + '/' + obj.name 
         }
 
+    def convertDate(self, milliseconds):
+        try:
+            date = datetime.datetime.fromtimestamp(milliseconds/1000.0)
+            return date.strftime('%Y-%m-%d %H:%M:%S.%f')
+        except:
+            return milliseconds
 
     def create_egress_log(self, schema_data=None):
         log_data = self.log_data
@@ -354,8 +360,8 @@ class Client(object):
             ip = environ.get('REMOTE_ADDR', None)
         agent = environ.get('HTTP_USER_AGENT',None)
         if not schema_data:
-            start_time = log_data.get('job_details').get('startTime')
-            end_time = log_data.get('job_details').get('endTime')
+            start_time = self.convertDate(log_data.get('job_details').get('startTime'))
+            end_time = self.convertDate(log_data.get('job_details').get('endTime'))
             total_bytes_processed = log_data.get('job_details').get('query').get('totalBytesProcessed')
             total_bytes_billed = log_data.get('job_details').get('query').get('totalBytesBilled')
             cache_hit = log_data.get('job_details').get('query').get('cacheHit')
