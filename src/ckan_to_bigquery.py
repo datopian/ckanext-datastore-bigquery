@@ -1,4 +1,4 @@
-import os
+import os, sys
 
 from google.cloud import bigquery
 from api_tracker import tables_in_query
@@ -11,6 +11,8 @@ from ckan.common import config, request
 import ckan.plugins.toolkit as toolkit
 import logging
 import datetime
+from user_agents import parse
+
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +40,6 @@ class Client(object):
         '''
         include_total = False
         include_total = bool('include_total' in data_dict) and data_dict.get('include_total', False)
-
         # Fetching the metadata of the table from dataset for the schema and total count
         # Will reduce the API calls by 2 for each call to datastore_search
 
@@ -52,7 +53,8 @@ class Client(object):
         if '__extras' in data_dict:
             self.log_data['api_call_type'] = data_dict.get('__extras').get('api_call_type')
         self.resource_details['big_query_resource_name'] = data_dict.get('resource_id')
-
+        if not self.checkUserAgent():
+            self.log_data['api_call_type'] = 'direct-api'
         end = str(datetime.datetime.now())
         schema_data = {
             "start": start,
@@ -130,8 +132,10 @@ class Client(object):
         self.log_data['query'] = query
         query_job = self.bqclient_readonly.query(query, job_config=self.job_config)
         rows = query_job.result()
+        self.log_data['bigquery_job_id'] = query_job.job_id
         self.log_data['job_details'] = query_job._properties.get('statistics')
         records = [dict(row) for row in rows]
+        self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
         return records
     
     def get_total_num_of_query_rows(self, fields, data_dict=None, **kwargs):
@@ -152,8 +156,10 @@ class Client(object):
 
         query_job = self.bqclient_readonly.query(count_sql_string, job_config=self.job_config)
         rows = query_job.result() 
+        self.log_data['bigquery_job_id'] = query_job.job_id
         records = [dict(row) for row in rows]
         log.warning("records {}".format(records[0]['f0_']))
+        self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
         return records[0]['f0_']
 
     def get_bq_table_schema(self, data_dict=None, **kwargs):
@@ -168,6 +174,7 @@ class Client(object):
         
         query_job = self.bqclient_readonly.query(query, job_config=self.job_config)
         rows = query_job.result()
+        self.log_data['bigquery_job_id'] = query_job.job_id
         bq_table_schema = rows.schema
         return bq_table_schema
 
@@ -229,6 +236,8 @@ class Client(object):
         # (the +1 is so that we know if the results went over the limit or not)
         rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
         self.log_data['api_call_type'] = "dataexplorer-filtered-download"
+        if not self.checkUserAgent():
+            self.log_data['api_call_type'] = 'direct-api'
 
         sql_initial = sql
         # limit the number of results to return by rows_max
@@ -238,8 +247,10 @@ class Client(object):
         self.log_data['query'] = sql
         query_job = self.bqclient_readonly.query(sql, job_config=self.job_config)
         rows = query_job.result() 
+        self.log_data['bigquery_job_id'] = query_job.job_id
         self.log_data['job_details'] = query_job._properties.get('statistics')
         records = [dict(row) for row in rows]
+        self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
         # check if results truncated ...
         if len(records) == rows_max + 1:
            return self.bulk_export(sql_initial)
@@ -261,6 +272,10 @@ class Client(object):
         log.warning("Data_dict {}".format(data_dict))
         if data_dict.get('resource_id'):
             self.resource_details['big_query_resource_name'] = data_dict.get('resource_id')
+        if not data_dict.get('resource_id'):
+            return {
+                "success": "false",
+            }
         is_bulk = bool('bulk' in data_dict)
         log.warning("is_bulk - {}".format(is_bulk))
         if is_bulk:
@@ -275,14 +290,19 @@ class Client(object):
             self.log_data['query'] = sql_initial
             sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
             # get temp table containing query result
-            sql_query_job.result() 
+            rows = sql_query_job.result()
+            records = [dict(row) for row in rows]
             destination_table = sql_query_job.destination
+            self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
+            self.log_data['storage_egress'] = sys.getsizeof(str(records))
             log.warning("destination table: {}".format(destination_table))
             destination_urls = self.extract_query_to_gcs(destination_table, sql_initial)
             log.warning("extract job result: {}".format(destination_urls))
-            
+            self.log_data['bigquery_job_id'] = sql_query_job.job_id
             self.log_data['job_details'] = sql_query_job._properties.get('statistics')
             self.log_data['api_call_type'] = "dataexplorer-bulk-download"
+            if not self.checkUserAgent():
+                self.log_data['api_call_type'] = 'direct-api'
             self.create_egress_log()
             return {
                 "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
@@ -349,6 +369,18 @@ class Client(object):
         except:
             return milliseconds
 
+    def checkUserAgent(self):
+        environ = request.environ
+        agent = environ.get('HTTP_USER_AGENT')
+        user_agent = parse(agent)
+        log.warning(user_agent.is_bot)
+        if (user_agent.is_pc or \
+            user_agent.is_tablet or \
+            user_agent.is_mobile or \
+            user_agent.is_touch_capable):
+            return True
+        else:
+            return False
     def create_egress_log(self, schema_data=None):
         log_data = self.log_data
         # Get Environ for the IP, user-agent and Remote User
@@ -380,7 +412,10 @@ class Client(object):
                     "resource_name": self.resource_details.get('big_query_resource_name'),
                     "big_query_resource_name":self.resource_details.get('big_query_resource_name'),
                     "cache_hit": cache_hit,
-                    "api_call_type": log_data.get('api_call_type', 'direct-api')
+                    "api_call_type": log_data.get('api_call_type', 'direct-api'),
+                    "storage_egress": log_data.get('storage_egress', ''),
+                    "bigquery_job_id": log_data.get('bigquery_job_id',''),
+                    "bigquery_egress": log_data.get('bigquery_egress','')
                 }
 
             } 
@@ -402,7 +437,10 @@ class Client(object):
                     "cache_hit": None,
                     "total_count": schema_data.get('total_count'),
                     "table_size": schema_data.get('table_size'),
-                    "api_call_type": log_data.get('api_call_type', 'direct-api')
+                    "api_call_type": log_data.get('api_call_type', 'direct-api'),
+                    "storage_egress": log_data.get('storage_egress', ''),
+                    "bigquery_job_id": log_data.get('bigquery_job_id',''),
+                    "bigquery_egress": log_data.get('bigquery_egress','')
                 }
 
             } 
