@@ -313,7 +313,16 @@ class Client(object):
         # default is_bulk export value
         is_bulk = False
         log.warning("Data_dict {}".format(data_dict))
+        import re
+        query_resource_id = re.findall(r'`(.+?)`', data_dict['sql'])[0]
+        log.warning("query_resource_id {}".format(query_resource_id))
+        
         if data_dict.get('resource_id'):
+            if query_resource_id != data_dict.get('resource_id'):
+                return {
+                    "success": "false",
+                    "message": "No Resource found for resource id"
+                }
             context = get_context()
             resource = resource_show(context, {'id': data_dict.get('resource_id')})
             if resource:
