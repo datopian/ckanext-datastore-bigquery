@@ -7,14 +7,57 @@ from google.api_core import exceptions
 from google.api_core import retry
 from google.api_core.retry import if_exception_type
 
-from ckan.common import config, request
-import ckan.plugins.toolkit as toolkit
+from ckan import model
+import ckan.logic as logic
+_get_or_bust = logic.get_or_bust
+NotFound = logic.NotFound
+from paste.deploy.converters import asbool
+from ckan.common import config, request, _
+import ckan.plugins.toolkit as tk
 import logging
 import datetime
 from user_agents import parse
 
 
 log = logging.getLogger(__name__)
+
+def get_context():
+    """Get a default context dict
+    """
+    return {
+        'model': model,
+        'user': tk.c.user,
+        'auth_user_obj': tk.c.userobj,
+    }
+
+
+def resource_show(context, data_dict):
+    '''Return the metadata of a resource.
+    :param id: the id of the resource
+    :type id: string
+    :param include_tracking: add tracking information to dataset and
+        resources (default: ``False``)
+    :type include_tracking: bool
+    :rtype: dictionary
+    '''
+    model = context['model']
+    name_or_id = data_dict.get("id") or _get_or_bust(data_dict, 'name_or_id')
+    resource = model.Resource.get(name_or_id)
+    if not resource:
+        raise NotFound
+    pkg_dict = logic.get_action('package_show')(
+        dict(context),
+        {'id': resource.package.id,
+        'include_tracking': asbool(data_dict.get('include_tracking', False))})
+    for resource_dict in pkg_dict['resources']:
+        if resource_dict['name'] == name_or_id:
+            break
+    else:
+        log.error('Could not find resource %s after all', name_or_id)
+        raise NotFound(_('Resource was not found.'))
+
+    return resource_dict
+
 
 class Client(object):
     def __init__(self, project_id, dataset, creds, read_only_creds):
@@ -271,10 +314,19 @@ class Client(object):
         is_bulk = False
         log.warning("Data_dict {}".format(data_dict))
         if data_dict.get('resource_id'):
-            self.resource_details['big_query_resource_name'] = data_dict.get('resource_id')
+            context = get_context()
+            resource = resource_show(context, {'id': data_dict.get('resource_id')})
+            if resource:
+                self.resource_details['big_query_resource_name'] = data_dict.get('resource_id')
+            else:
+                return {
+                    "success": "false",
+                    "message": "No Resource found for resource id"
+                }
         if not data_dict.get('resource_id'):
             return {
                 "success": "false",
+                "message": "resource_id is mandatory"
             }
         is_bulk = bool('bulk' in data_dict)
         log.warning("is_bulk - {}".format(is_bulk))
