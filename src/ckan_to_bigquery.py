@@ -351,11 +351,11 @@ class Client(object):
             self.log_data['query'] = sql_initial
             sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
             # get temp table containing query result
-            rows = sql_query_job.result()
-            records = [dict(row) for row in rows]
             destination_table = sql_query_job.destination
-            self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
-            self.log_data['storage_egress'] = sys.getsizeof(str(records))
+            egress = self.bqclient.get_table(destination_table)
+            egress = egress.num_bytes
+            self.log_data['bigquery_egress'] = egress
+            self.log_data['storage_egress'] = egress
             log.warning("destination table: {}".format(destination_table))
             destination_urls = self.extract_query_to_gcs(destination_table, sql_initial)
             log.warning("extract job result: {}".format(destination_urls))
