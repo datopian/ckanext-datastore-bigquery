@@ -292,7 +292,17 @@ class Client(object):
         rows = query_job.result() 
         self.log_data['bigquery_job_id'] = query_job.job_id
         self.log_data['job_details'] = query_job._properties.get('statistics')
-        records = [dict(row) for row in rows]
+        records = []
+
+        # Convert large numbers to strings to avoid them being rounded of
+        # in the browser
+        for row in rows:
+            dict_row = dict(row)
+            for k, v in dict_row:
+                if type(v) == int and v > 12345678910:
+                    dict_row[k] = str(v)
+                records.append(dict_row)
+
         self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
         # check if results truncated ...
         if len(records) == rows_max + 1:
