@@ -116,14 +116,11 @@ class Client(object):
                     query_fields.append(field)
 
         results = self.search_raw(fields, query_fields, data_dict)
-        updated_results = []
         for item in results:
-            row = {}
-            for key, value in item:
-                if type(value) == int and value > 12345678910:
-                    log.info("Changing key: {} with value {} to string".format(key, value))
-                    row[key] = str(value)
-            updated_results.append(row)
+            for k in item:
+                if type(item[k]) == int and item[k] > 12345678910:
+                    log.info("Changing key: {} with value {} to string".format(k, item[k]))
+                    item[k] = str(item[k])
         if include_total:
             total = table_meta_data.num_rows
         else:
@@ -134,7 +131,7 @@ class Client(object):
             "resource_id": data_dict['resource_id'],
             "fields": fields,
             "records_format": "objects",
-            "records": updated_results,
+            "records": results,
             "_links": {
             "start": "/api/3/action/datastore_search?resource_id="+data_dict['resource_id'],
             "next": "/api/3/action/datastore_search?offset=100&resource_id="+data_dict['resource_id']
@@ -306,10 +303,10 @@ class Client(object):
         # in the browser
         for row in rows:
             dict_row = dict(row)
-            for k, v in dict_row:
-                if type(v) == int and v > 12345678910:
-                    log.info("Changing key: {} with value {} to string".format(k, v))
-                    dict_row[k] = str(v)
+            for k in dict_row:
+                if type(dict_row[k]) == int and dict_row[k] > 12345678910:
+                    log.info("Changing key: {} with value {} to string".format(k, dict_row[k]))
+                    dict_row[k] = str(dict_row[k])
             log.info("UPDATED dict")
             log.info(dict_row)
             records.append(dict_row)
