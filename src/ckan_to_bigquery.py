@@ -300,7 +300,10 @@ class Client(object):
             dict_row = dict(row)
             for k, v in dict_row:
                 if type(v) == int and v > 12345678910:
+                    log.info("Changing key: {} with value {} to string".format(k, v))
                     dict_row[k] = str(v)
+                log.info("UPDATED dict")
+                log.info(dict_row)
                 records.append(dict_row)
 
         self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
