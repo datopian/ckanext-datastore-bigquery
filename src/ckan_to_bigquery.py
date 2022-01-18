@@ -119,7 +119,7 @@ class Client(object):
         for item in results:
             for k in item:
                 if type(item[k]) == int and item[k] > 12345678910:
-                    log.info("Changing key: {} with value {} to string".format(k, item[k]))
+                    log.warning("Changing key: {} with value {} to string".format(k, item[k]))
                     item[k] = str(item[k])
         if include_total:
             total = table_meta_data.num_rows
@@ -305,10 +305,9 @@ class Client(object):
             dict_row = dict(row)
             for k in dict_row:
                 if type(dict_row[k]) == int and dict_row[k] > 12345678910:
-                    log.info("Changing key: {} with value {} to string".format(k, dict_row[k]))
+                    log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
                     dict_row[k] = str(dict_row[k])
-            log.info("UPDATED dict")
-            log.info(dict_row)
+            log.warning("RECORD _ROW: {}".format(dict_row))
             records.append(dict_row)
 
         self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
