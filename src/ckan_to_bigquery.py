@@ -116,6 +116,14 @@ class Client(object):
                     query_fields.append(field)
 
         results = self.search_raw(fields, query_fields, data_dict)
+        updated_results = []
+        for item in results:
+            row = {}
+            for key, value in item:
+                if type(value) == int and value > 12345678910:
+                    log.info("Changing key: {} with value {} to string".format(key, value))
+                    row[key] = str(value)
+            updated_results.append(row)
         if include_total:
             total = table_meta_data.num_rows
         else:
@@ -126,7 +134,7 @@ class Client(object):
             "resource_id": data_dict['resource_id'],
             "fields": fields,
             "records_format": "objects",
-            "records": results,
+            "records": updated_results,
             "_links": {
             "start": "/api/3/action/datastore_search?resource_id="+data_dict['resource_id'],
             "next": "/api/3/action/datastore_search?offset=100&resource_id="+data_dict['resource_id']
@@ -302,9 +310,9 @@ class Client(object):
                 if type(v) == int and v > 12345678910:
                     log.info("Changing key: {} with value {} to string".format(k, v))
                     dict_row[k] = str(v)
-                log.info("UPDATED dict")
-                log.info(dict_row)
-                records.append(dict_row)
+            log.info("UPDATED dict")
+            log.info(dict_row)
+            records.append(dict_row)
 
         self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
         # check if results truncated ...
