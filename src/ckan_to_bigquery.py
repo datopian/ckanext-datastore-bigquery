@@ -298,6 +298,9 @@ class Client(object):
         self.log_data['bigquery_job_id'] = query_job.job_id
         self.log_data['job_details'] = query_job._properties.get('statistics')
         records = []
+        
+        if rows.total_rows == rows_max + 1:
+            return self.bulk_export(sql_initial)
 
         # Convert large numbers to strings to avoid them being rounded of
         # in the browser
@@ -311,20 +314,16 @@ class Client(object):
             records.append(dict_row)
 
         self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
-        # check if results truncated ...
-        if len(records) == rows_max + 1:
-           return self.bulk_export(sql_initial)
-        else:
-            self.create_egress_log()
-            # do normal
-            return {
-                    "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
-                    "success": "true",
-                    "result":{
-                        "records": records,
-                        "fields": []
-                    }
+        self.create_egress_log()
+        # do normal
+        return {
+                "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
+                "success": "true",
+                "result":{
+                    "records": records,
+                    "fields": []
                 }
+            }
 
     def search_sql(self, data_dict):
         # default is_bulk export value
