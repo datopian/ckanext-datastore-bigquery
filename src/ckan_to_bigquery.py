@@ -116,6 +116,11 @@ class Client(object):
                     query_fields.append(field)
 
         results = self.search_raw(fields, query_fields, data_dict)
+        for item in results:
+            for k in item:
+                if type(item[k]) == int and item[k] > 12345678910:
+                    log.warning("Changing key: {} with value {} to string".format(k, item[k]))
+                    item[k] = str(item[k])
         if include_total:
             total = table_meta_data.num_rows
         else:
@@ -292,22 +297,33 @@ class Client(object):
         rows = query_job.result() 
         self.log_data['bigquery_job_id'] = query_job.job_id
         self.log_data['job_details'] = query_job._properties.get('statistics')
-        records = [dict(row) for row in rows]
+        records = []
+        
+        if rows.total_rows == rows_max + 1:
+            return self.bulk_export(sql_initial)
+
+        # Convert large numbers to strings to avoid them being rounded of
+        # in the browser
+        for row in rows:
+            dict_row = dict(row)
+            for k in dict_row:
+                if type(dict_row[k]) == int and dict_row[k] > 12345678910:
+                    log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
+                    dict_row[k] = str(dict_row[k])
+            log.warning("RECORD _ROW: {}".format(dict_row))
+            records.append(dict_row)
+
         self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
-        # check if results truncated ...
-        if len(records) == rows_max + 1:
-           return self.bulk_export(sql_initial)
-        else:
-            self.create_egress_log()
-            # do normal
-            return {
-                    "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
-                    "success": "true",
-                    "result":{
-                        "records": records,
-                        "fields": []
-                    }
+        self.create_egress_log()
+        # do normal
+        return {
+                "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
+                "success": "true",
+                "result":{
+                    "records": records,
+                    "fields": []
                 }
+            }
 
     def search_sql(self, data_dict):
         # default is_bulk export value
