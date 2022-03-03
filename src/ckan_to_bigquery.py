@@ -17,6 +17,7 @@ import ckan.plugins.toolkit as tk
 import logging
 import datetime
 from user_agents import parse
+import time
 
 
 log = logging.getLogger(__name__)
@@ -368,7 +369,12 @@ class Client(object):
             sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
             # get temp table containing query result
             destination_table = sql_query_job.destination
-            egress = self.bqclient.get_table(destination_table)
+            try:
+                egress = self.bqclient.get_table(destination_table)
+            except Exception:
+                log.warning('Retrying while table is getting created')
+                time.sleep(4)                                                                                                                                                
+                egress = self.bqclient.get_table(destination_table)
             egress = egress.num_bytes
             self.log_data['bigquery_egress'] = egress
             self.log_data['storage_egress'] = egress
