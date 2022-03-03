@@ -362,19 +362,20 @@ class Client(object):
         else:
             log.warning("do standard search_sql")
             return self.search_sql_normal(data_dict['sql'])
-
+    
+    # Wait for the destination table to get created
+    @retry.Retry(predicate=if_exception_type(exceptions.NotFound),initial=2.0,deadline=8.0)
+    def get_destination_table(self, destination_table):
+        log.warning("Fetching destination table: {}".format(destination_table))
+        return self.bqclient.get_table(destination_table)
+    
     def bulk_export(self, sql_initial):
         try:
             self.log_data['query'] = sql_initial
             sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
             # get temp table containing query result
             destination_table = sql_query_job.destination
-            try:
-                egress = self.bqclient.get_table(destination_table)
-            except Exception:
-                log.warning('Retrying while table is getting created')
-                time.sleep(4)                                                                                                                                                
-                egress = self.bqclient.get_table(destination_table)
+            egress = self.get_destination_table(destination_table)
             egress = egress.num_bytes
             self.log_data['bigquery_egress'] = egress
             self.log_data['storage_egress'] = egress
