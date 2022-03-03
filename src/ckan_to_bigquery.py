@@ -17,7 +17,6 @@ import ckan.plugins.toolkit as tk
 import logging
 import datetime
 from user_agents import parse
-import time
 
 
 log = logging.getLogger(__name__)
