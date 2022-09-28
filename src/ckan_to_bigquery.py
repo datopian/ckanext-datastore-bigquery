@@ -43,6 +43,8 @@ def resource_show(context, data_dict):
     model = context['model']
     name_or_id = data_dict.get("id") or _get_or_bust(data_dict, 'name_or_id')
     resource = model.Resource.get(name_or_id)
+    if resource and resource.state == 'deleted':
+        resource = model.Session.query(model.Resource).filter(model.Resource.name == name_or_id).filter( model.Resource.state == 'active').first()
     if not resource:
         raise NotFound
     pkg_dict = logic.get_action('package_show')(
