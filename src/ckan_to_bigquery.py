@@ -123,14 +123,12 @@ class Client(object):
                 if type(item[k]) == int and item[k] > 12345678910:
                     log.warning("Changing key: {} with value {} to string".format(k, item[k]))
                     item[k] = str(item[k])
-        if include_total:
+        if self.log_data['api_call_type'] == 'browser-data-explorer-filter':
+            total = self.get_total_num_of_query_rows(fields, data_dict)
+        elif include_total:
             total = table_meta_data.num_rows
         else:
             total = len(results)
-            if self.log_data['api_call_type'] == 'browser-data-explorer-filter':
-                total = self.get_total_num_of_query_rows(fields, data_dict)
-            else:
-                total = len(results)
         self.create_egress_log()
         out = {
             "include_total": include_total,
