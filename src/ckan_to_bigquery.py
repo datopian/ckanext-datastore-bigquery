@@ -128,9 +128,9 @@ class Client(object):
         else:
             total = len(results)
             if self.log_data['api_call_type'] == 'browser-data-explorer-filter':
-+               total = self.get_total_num_of_query_rows(fields, data_dict)
-+           else:
-+               total = len(results)
+                total = self.get_total_num_of_query_rows(fields, data_dict)
+            else:
+                total = len(results)
         self.create_egress_log()
         out = {
             "include_total": include_total,
