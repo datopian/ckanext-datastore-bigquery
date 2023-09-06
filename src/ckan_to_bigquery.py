@@ -18,7 +18,9 @@ import logging
 import datetime
 from user_agents import parse
 
-
+import requests
+import boto3
+from botocore.client import Config
 log = logging.getLogger(__name__)
 
 def get_context():
@@ -60,6 +62,34 @@ def resource_show(context, data_dict):
 
     return resource_dict
 
+def upload_to_cloudflare(download_url, key):
+    endpoint_url = config.get('ckanext.cloudflare.endpoint', '')
+    access_id = config.get('ckanext.cloudflare.access_id', '')
+    secret = config.get('ckanext.cloudflare.access_key', '')
+    r = requests.get(download_url, stream=True)
+    s3 = boto3.resource('s3', endpoint_url=endpoint_url, aws_access_key_id=access_id, aws_secret_access_key=secret, config=Config(signature_version='s3v4'))
+    s3_client = boto3.client('s3', endpoint_url=endpoint_url, aws_access_key_id=access_id, aws_secret_access_key=secret, config=Config(signature_version='s3v4'))
+    bucket_name = config.get('ckanext.cloudflare.bucket', '')
+    try:
+        bucket = s3.Bucket(bucket_name)
+        bucket.upload_fileobj(r.raw, key)
+        url = get_signed_url(s3_client,bucket_name, key)
+        return url
+    except Exception as e:
+        print(str(e))
+
+def get_signed_url(s3, bucket, key):
+    try:
+        url = s3.generate_presigned_url(
+                ClientMethod='get_object',
+                    Params={
+                    'Bucket':bucket,
+                    'Key': key
+                    }
+                )
+        return url
+    except Exception as e:
+        pass
 
 class Client(object):
     def __init__(self, project_id, dataset, creds, read_only_creds):
@@ -445,8 +475,10 @@ class Client(object):
         return objects_as_files
 
     def _gcs_object_to_file_url(self, obj, bucket_name):
+        res_destination_url = 'https://storage.googleapis.com/'+ bucket_name + '/' + obj.name
+        url = upload_to_cloudflare(res_destination_url, obj.name)
         return {
-            'url': 'https://storage.googleapis.com/'+ bucket_name + '/' + obj.name 
+            'url': url
         }
 
     def convertDate(self, milliseconds):
