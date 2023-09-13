@@ -79,12 +79,14 @@ def upload_to_cloudflare(download_url, key):
         print(str(e))
 
 def get_signed_url(s3, bucket, key):
+    filename=key.split('/')[-1]
     try:
         url = s3.generate_presigned_url(
                 ClientMethod='get_object',
                     Params={
                     'Bucket':bucket,
-                    'Key': key
+                    'Key': key,
+                    'ResponseContentDisposition':'filename='+filename
                     }
                 )
         return url
@@ -446,7 +448,7 @@ class Client(object):
         table_name = tables_in_query(sql)
         job_config = bigquery.job.ExtractJobConfig()
         job_config.compression = bigquery.Compression.GZIP
-        destination_uris = "gs://{}/{}/{}".format(bucket_name, table_ref.table_id, table_name+"-*.csv.gz")
+        destination_uris = "gs://{}/{}/{}".format(bucket_name, table_ref.table_id, table_name+"-*.csv.zip")
         # extract table into Cloud Storage files.
         extract_job = self.bqclient.extract_table(
             table_ref,
