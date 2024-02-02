@@ -478,9 +478,9 @@ class Client(object):
 
     def _gcs_object_to_file_url(self, obj, bucket_name):
         res_destination_url = 'https://storage.googleapis.com/'+ bucket_name + '/' + obj.name
-        url = upload_to_cloudflare(res_destination_url, obj.name)
+        # url = upload_to_cloudflare(res_destination_url, obj.name)
         return {
-            'url': url
+            'url': res_destination_url
         }
 
     def convertDate(self, milliseconds):
