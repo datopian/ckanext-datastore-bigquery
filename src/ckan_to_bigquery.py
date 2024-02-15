@@ -155,6 +155,9 @@ class Client(object):
                 if type(item[k]) == int and item[k] > 12345678910:
                     log.warning("Changing key: {} with value {} to string".format(k, item[k]))
                     item[k] = str(item[k])
+                if isinstance(item[k], datetime.date):
+                    log.warning("Changing key: {} with value {} to string".format(k, item[k]))
+                    item[k] = str(item[k])
         if self.log_data['api_call_type'] == 'browser-data-explorer-filter':
             total = self.get_total_num_of_query_rows(fields, data_dict)
         elif include_total:
@@ -345,6 +348,9 @@ class Client(object):
             for k in dict_row:
                 if type(dict_row[k]) == int and dict_row[k] > 12345678910:
                     log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
+                    dict_row[k] = str(dict_row[k])
+                if isinstance(dict_row[k], datetime.date):
+                    log.warning("Changing key: {} with value {} to string".format(k, item[k]))
                     dict_row[k] = str(dict_row[k])
             log.warning("RECORD _ROW: {}".format(dict_row))
             records.append(dict_row)
