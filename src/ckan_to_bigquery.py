@@ -350,7 +350,7 @@ class Client(object):
                     log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
                     dict_row[k] = str(dict_row[k])
                 if isinstance(dict_row[k], datetime.date):
-                    log.warning("Changing key: {} with value {} to string".format(k, item[k]))
+                    log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
                     dict_row[k] = str(dict_row[k])
             log.warning("RECORD _ROW: {}".format(dict_row))
             records.append(dict_row)
