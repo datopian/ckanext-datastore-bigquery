@@ -158,7 +158,7 @@ class Client(object):
                 if isinstance(item[k], datetime.date):
                     log.warning("Changing key: {} with value {} to string".format(k, item[k]))
                     item[k] = str(item[k])
-        if self.log_data['api_call_type'] == 'browser-data-explorer-filter':
+        if self.log_data.get('api_call_type') == 'browser-data-explorer-filter':
             total = self.get_total_num_of_query_rows(fields, data_dict)
         elif include_total:
             total = table_meta_data.num_rows
@@ -302,14 +302,25 @@ class Client(object):
             where_str += where_filters[:-4]
         # add full-text search where clause
         if q:
-            where_q = ''
-            for key, value in q.iteritems():
-                if self.get_field_type(fields, key) == 'string':
-                    where_q_str = ' LOWER({0}) like LOWER("{1}%") '.format(key, value[:-2])
+            where_q = ""
+            result_dict = {
+                k.strip('"'): v.strip('"')
+                for k, v in [pair.strip("{}").split(":") for pair in q.split(",")]
+            }
+        try:
+            for key, value in result_dict.iteritems():
+                if self.get_field_type(fields, key) == "string":
+                    where_q_str = ' LOWER({0}) like LOWER("{1}%") '.format(key, value)
                 else:
-                    where_q_str = ' CAST({0} as STRING)  like "{1}%" '.format(key, value[:-2])
+                    where_q_str = ' CAST({0} as STRING)  like "{1}%" '.format(
+                        key, value
+                    )
                 where_q += where_q_str
             where_str += where_q
+        except Exception as e: 
+            where_str = ''
+            log.error("Error in q: {}".format(e))
+            pass
         log.warning("where_str: {}".format(where_str))
         return where_str
 
@@ -454,7 +465,7 @@ class Client(object):
         table_name = tables_in_query(sql)
         job_config = bigquery.job.ExtractJobConfig()
         job_config.compression = bigquery.Compression.GZIP
-        destination_uris = "gs://{}/{}/{}".format(bucket_name, table_ref.table_id, table_name+"-*.csv.zip")
+        destination_uris = "gs://{}/{}/{}".format(bucket_name, table_ref.table_id, table_name+"-*.csv.gz")
         # extract table into Cloud Storage files.
         extract_job = self.bqclient.extract_table(
             table_ref,
