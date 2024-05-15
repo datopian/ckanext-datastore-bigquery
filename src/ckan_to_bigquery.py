@@ -59,6 +59,7 @@ class Client(object):
             "include_total": include_total,
             "resource_id": data_dict['resource_id'],
             "fields": fields,
+            "records": results,
             "records_format": "objects",
             "_links": {
             "start": "/api/3/action/datastore_search?resource_id="+data_dict['resource_id'],
