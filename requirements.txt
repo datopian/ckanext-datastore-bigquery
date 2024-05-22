@@ -1,2 +1,6 @@
 google-cloud-bigquery
 google-cloud-storage
+pyyaml 
+ua-parser 
+user-agents
+boto3==1.17.112
