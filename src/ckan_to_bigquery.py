@@ -307,36 +307,43 @@ class Client(object):
         query_history = self._get_query_history(table_id, encoded_query, table_modified_time)
         return query_history, encoded_query, table_modified_time
 
+    def _get_gcs_url(self, sql_initial):
+        sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
+        # get temp table containing query result
+        destination_table = sql_query_job.destination
+        log.warning(u"destination table: {}".format(destination_table))
+        destination_urls = self.extract_query_to_gcs(destination_table, sql_initial)
+
+        # insert query into history for future use
+        table_id = tables_in_query(sql_initial).replace('`', '')
+        return destination_urls, table_id
+
 
     def bulk_export(self, sql_initial):
-        query_history, encoded_query, table_modified_time = self._query_history_lookup(sql_initial)
         result = {
             "help": "https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
             "success": "true",
             "records_truncated": "true",
             "gc_urls": []
         }
-        if query_history:
-            log.warning("History Exist: returning datastore query result from history")
-            result['gc_urls'] = json.loads(query_history[0]['result'])
-            return result
-        else:
-            try:
-                sql_query_job = self.bqclient.query(sql_initial, job_config=self.job_config)
-                # get temp table containing query result
-                destination_table = sql_query_job.destination
-                log.warning("destination table: {}".format(destination_table))
-                destination_urls = self.extract_query_to_gcs(destination_table, sql_initial)
-                log.warning("extract job result: {}".format(destination_urls))
-
-                # insert query into history for future use
-                table_id = tables_in_query(sql_initial).replace('`', '')
+        try:
+            query_history, encoded_query, table_modified_time = self._query_history_lookup(sql_initial)
+            if query_history:
+                log.warning("History Exist: returning datastore query result from history")
+                result['gc_urls'] = json.loads(query_history[0]['result'])
+            else:
+                destination_urls, table_id = self._get_gcs_url(sql_initial)
                 self._insert_query_into_history(table_id, encoded_query, table_modified_time, json.dumps(destination_urls))
                 result['gc_urls'] = destination_urls
-                return result
+        except Exception as e:
+            log.error("An error occurred while looking up query history or inserting into history: {}".format(e))
+            try:
+                destination_urls, table_id = self._get_gcs_url(sql_initial)
+                result['gc_urls'] = destination_urls
+            except Exception as e:
+                log.error("An error occurred while getting GCS URL: {}".format(e))
+        return result
             
-            except Exception as ex:
-                log.error("Error: {}".format(str(ex)))
 
     @retry.Retry(predicate=if_exception_type(exceptions.NotFound))
     def extract_query_to_gcs(self, table_ref, sql):
