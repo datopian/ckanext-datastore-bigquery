@@ -3,7 +3,7 @@ import logging
 import os
 
 from ckan.common import config
-from ckanext.datastore.backend import DatastoreBackend, datastore_helpers
+from ckanext.datastore.backend import DatastoreBackend
 import ckan.plugins.toolkit as toolkit
 
 from src import ckan_to_bigquery as ckan2bq
@@ -47,16 +47,16 @@ class DatastoreBigQueryBackend(DatastoreBackend):
         ga_search_sql_api_tracker(data_dict['sql'])
         # TODO: try / except
         # TODO: timeouts etc
-        sql = data_dict['sql']
-        # TODO: restrict table access (??)
-        table_names = datastore_helpers.get_table_names_from_sql(context, sql)
-        log.debug('Tables involved in input SQL: {0!r}'.format(table_names))
 
-        if any(t.startswith('pg_') for t in table_names):
-           raise toolkit.NotAuthorized({
-               'permissions': ['Not authorized to access system tables']
-           })
-        context['check_access'](table_names)
+        # TODO: restrict table access (??)
+        # table_names = datastore_helpers.get_table_names_from_sql(context, sql)
+        # log.debug('Tables involved in input SQL: {0!r}'.format(table_names))
+
+        # if any(t.startswith('pg_') for t in table_names):
+        #    raise toolkit.NotAuthorized({
+        #        'permissions': ['Not authorized to access system tables']
+        #    })
+        # context['check_access'](table_names)
         engine = self._get_engine()
         return engine.search_sql(data_dict)
         
