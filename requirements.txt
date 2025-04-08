@@ -4,3 +4,4 @@ pyyaml
 ua-parser 
 user-agents
 boto3==1.17.112
+paste==3.10.1

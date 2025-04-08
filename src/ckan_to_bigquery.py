@@ -3,7 +3,7 @@ import base64
 import json
 
 from google.cloud import bigquery
-from api_tracker import tables_in_query
+from src.api_tracker import tables_in_query
 from google.cloud import storage
 from google.api_core import exceptions
 from google.api_core import retry
@@ -13,7 +13,6 @@ from ckan import model
 import ckan.logic as logic
 _get_or_bust = logic.get_or_bust
 NotFound = logic.NotFound
-from paste.deploy.converters import asbool
 from ckan.common import config, request, _
 import ckan.plugins.toolkit as tk
 import logging
@@ -25,6 +24,24 @@ import requests
 import boto3
 from botocore.client import Config
 log = logging.getLogger(__name__)
+
+def asbool(value):
+    """
+    Convert a value to a boolean.
+    
+    Recognizes:
+    - True values: 'true', 'yes', 'on', 't', 'y', '1', 1, True
+    - False values: 'false', 'no', 'off', 'f', 'n', '0', 0, False
+    - Case-insensitive
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if not value:
+        return False
+    value = str(value).strip().lower()
+    return value in ('true', 'yes', 'on', 't', 'y', '1')
 
 def get_context():
     """Get a default context dict
