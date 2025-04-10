@@ -309,7 +309,7 @@ class Client(object):
             where_str = ''
         if filters:
             where_filters = ''
-            for key, value in filters.iteritems():
+            for key, value in filters.items():
                 single_where_statament = '' 
                 log.warning("filter: {0} = {1}".format(key, value))
                 for value_item in value:
@@ -323,7 +323,7 @@ class Client(object):
         # add full-text search where clause
         if q:
             where_q = ''
-            for key, value in q.iteritems():
+            for key, value in q.items():
                 if self.get_field_type(fields, key) == 'string':
                     where_q_str = ' LOWER({0}) like LOWER("{1}%") '.format(key, value[:-2])
                 else:
@@ -447,7 +447,7 @@ class Client(object):
         table_id = tables_in_query(sql_initial).replace('`', '')
 
         # Convert the sql to base64
-        encoded_query = base64.b64encode(sql_initial)
+        encoded_query = base64.b64encode(sql_initial.encode('utf-8')).decode('utf-8')
         table_modified_time = self._get_table_last_modified_time(table_id)
         query_history = self._get_query_history(table_id, encoded_query, table_modified_time)
         return query_history, encoded_query, table_modified_time
@@ -601,7 +601,7 @@ class Client(object):
         try:
             date = datetime.datetime.fromtimestamp(milliseconds/1000.0)
             return date.strftime('%Y-%m-%d %H:%M:%S.%f')
-        except:
+        except Exception:
             return milliseconds
 
     def checkUserAgent(self):
