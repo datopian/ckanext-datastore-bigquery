@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+from typing import Any
 
 from ckan.common import config
 from ckanext.datastore.backend import DatastoreBackend
@@ -69,3 +70,99 @@ class DatastoreBigQueryBackend(DatastoreBackend):
     def resource_exists(self, id):
         # TODO: make this more rigorous
         return True
+
+    def resource_fields(self, id: str) -> dict[str, Any]:
+        """
+        Return dictionary of field information for a resource in BigQuery.
+        
+        :param id: The resource ID (i.e. BigQuery table name)
+        :returns: A dictionary with metadata about the resource and its fields
+        """
+        engine = self._get_engine()
+        
+        info = {'meta': {}, 'fields': []}
+        
+        try:
+            # Resource id for dereferencing aliases
+            info['meta']['id'] = id
+            
+            # Get table metadata from BigQuery
+            table_ref = engine.get_table_reference(id)
+            table = engine.client.get_table(table_ref)
+            
+            # Count of rows in table
+            info['meta']['count'] = table.num_rows
+            
+            # Table type
+            info['meta']['table_type'] = 'TABLE'  # BigQuery doesn't have the same table types as PostgreSQL
+            
+            # Size of table in bytes
+            info['meta']['size'] = table.num_bytes
+            
+            # We don't have direct equivalents for these in BigQuery, but we can include them for compatibility
+            info['meta']['db_size'] = None  # No direct equivalent
+            info['meta']['idx_size'] = None  # BigQuery doesn't use traditional indexes
+            
+            # Get aliases if any (implement if your BigQuery setup supports aliases)
+            info['meta']['aliases'] = []  # Implement if you support aliases
+            
+            # Get field information
+            fields = []
+            for field in table.schema:
+                field_info = {
+                    'id': field.name,
+                    'type': self._bq_to_ckan_type(field.field_type),
+                    'info': {},
+                    'schema': {
+                        'native_type': field.field_type,
+                        'mode': field.mode,
+                        'description': field.description,
+                        'is_index': False,  # BigQuery doesn't use traditional indexes
+                        'uniquekey': False,  # BigQuery doesn't enforce unique constraints the same way
+                        'notnull': field.mode == 'REQUIRED'
+                    }
+                }
+                
+                # Add any field description as info
+                if field.description:
+                    field_info['info']['description'] = field.description
+                    
+                fields.append(field_info)
+                
+            info['fields'] = fields
+            
+        except Exception as e:
+            log.error(f"Error getting resource fields for {id}: {str(e)}")
+            # Optionally re-raise or handle the error as needed
+            
+        return info
+
+    def _bq_to_ckan_type(self, bq_type: str) -> str:
+        """
+        Convert BigQuery data types to CKAN datastore types.
+        
+        :param bq_type: BigQuery data type
+        :returns: Equivalent CKAN datastore type
+        """
+        type_mapping = {
+            'STRING': 'text',
+            'INTEGER': 'int',
+            'INT64': 'int',
+            'FLOAT': 'float',
+            'FLOAT64': 'float',
+            'NUMERIC': 'numeric',
+            'BOOLEAN': 'bool',
+            'BOOL': 'bool',
+            'TIMESTAMP': 'timestamp',
+            'DATE': 'date',
+            'TIME': 'time',
+            'DATETIME': 'timestamp',
+            'RECORD': 'nested',
+            'STRUCT': 'nested',
+            'BYTES': 'text',
+            'GEOGRAPHY': 'text',
+            'ARRAY': 'text[]',  # This is a simplification, might need refinement
+            'JSON': 'json'
+        }
+        
+        return type_mapping.get(bq_type, 'text')  # Default to text for unknown types
