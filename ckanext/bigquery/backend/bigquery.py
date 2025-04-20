@@ -5,6 +5,7 @@ from typing import Any
 
 from ckan.common import config
 from ckanext.datastore.backend import DatastoreBackend
+from google.cloud import bigquery
 import ckan.plugins.toolkit as toolkit
 
 from src import ckan_to_bigquery as ckan2bq
@@ -79,16 +80,29 @@ class DatastoreBigQueryBackend(DatastoreBackend):
         :returns: A dictionary with metadata about the resource and its fields
         """
         engine = self._get_engine()
+        client: bigquery.Client = engine.bqclient # Get the actual BQ client
         
         info = {'meta': {}, 'fields': []}
         
         try:
             # Resource id for dereferencing aliases
             info['meta']['id'] = id
+
+            context = ckan2bq.get_context()
+            resource = toolkit.get_action('resource_show')(context, {'id': id})
+
+            log.info(f"Resource metadata for {id}: {resource}")
+
+            bq_table_name = resource.get('bq_table_name', '')
+            project_id = config.get('ckanext.bigquery.project', None)
+            dataset = config.get('ckanext.bigquery.dataset', None)
             
-            # Get table metadata from BigQuery
-            table_ref = engine.get_table_reference(id)
-            table = engine.client.get_table(table_ref)
+            table_ref = bigquery.TableReference.from_string(
+                    f"{project_id}.{dataset}.{bq_table_name}"
+              )
+
+            # Get table object using the correct client method
+            table = client.get_table(table_ref)
             
             # Count of rows in table
             info['meta']['count'] = table.num_rows
