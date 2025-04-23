@@ -23,7 +23,7 @@ Then save them to the json file.
 
 ### Installation
 
-You need CKAN instance running (tested with ckan v2.8.2).
+You need CKAN instance running (tested with ckan v2.11.0).
 
 Install extension:
 ```
