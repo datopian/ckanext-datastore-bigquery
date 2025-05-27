@@ -47,9 +47,7 @@ def get_context():
     """Get a default context dict
     """
     return {
-        'model': model,
-        'user': tk.c.user,
-        'auth_user_obj': tk.c.userobj,
+        "ignore_auth": True,
     }
 
 
