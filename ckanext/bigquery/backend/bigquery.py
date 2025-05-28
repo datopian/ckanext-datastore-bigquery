@@ -89,6 +89,7 @@ class DatastoreBigQueryBackend(DatastoreBackend):
             info['meta']['id'] = id
 
             context = ckan2bq.get_context()
+            log.info(f"Trying to get resource_show for {id}")
             resource = toolkit.get_action('resource_show')(context, {'id': id})
 
             log.info(f"Resource metadata for {id}: {resource}")
