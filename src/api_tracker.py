@@ -13,7 +13,7 @@ def ga_api_tracker(resource_id):
     try:
         tid = config.get('googleanalytics.id', None)
         endpoint = config.get('googleanalytics.endpoint', None)
-        client_id = hashlib.md5(tk.c.user).hexdigest()
+        client_id = hashlib.md5(tk.current_user.name).hexdigest()
         payload = {
             'v': 1, # Version.
             'tid': tid, # Tracking ID
