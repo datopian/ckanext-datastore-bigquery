@@ -143,7 +143,11 @@ class Client(object):
         start = str(datetime.datetime.now())
         table_meta_data = self.bqclient_readonly.get_table(table_ref)  # API call
         log.warning("table_meta_data {}".format(table_meta_data))
-        fields = self.table_schema_from_bq_schema(table_meta_data.schema)
+        try:
+            fields = self.table_schema_from_bq_schema(table_meta_data.schema)
+        except Exception as e:
+            log.error("Error in table_schema_from_bq_schema {}".format(e))
+            fields = []
         log.warning('Data_dict {}'.format(data_dict.get('__extras')))
         if '__extras' in data_dict:
             self.log_data['api_call_type'] = data_dict.get('__extras').get('api_call_type')
