@@ -60,7 +60,6 @@ def resource_show(context, data_dict):
     :type include_tracking: bool
     :rtype: dictionary
     '''
-    model = context['model']
     name_or_id = data_dict.get("id") or _get_or_bust(data_dict, 'name_or_id')
     resource = model.Resource.get(name_or_id)
     if resource and resource.state == 'deleted':
