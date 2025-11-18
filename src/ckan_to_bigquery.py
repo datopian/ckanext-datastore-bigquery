@@ -25,6 +25,23 @@ class Client(object):
     def _table_id(self, table_name):
         return '%s.%s.%s' % (self.project_id, self.dataset, table_name)
 
+    def _convert_row_safe(self, row):
+        '''Convert a BigQuery row to a dictionary with safe integer handling.
+        
+        All integers are converted to strings to preserve precision when
+        serialized to JSON, avoiding issues with JavaScript's limited
+        number precision.
+        '''
+        result = {}
+        for key, value in dict(row).items():
+            is_integer = isinstance(value, int)
+            
+            if is_integer:
+                result[key] = str(value)
+            else:
+                result[key] = value
+        return result
+
     def search(self, data_dict):
         '''
             Search BigQuery
@@ -106,7 +123,7 @@ class Client(object):
 
         query_job = self.bqclient_readonly.query(query, job_config=self.job_config)
         rows = query_job.result()
-        records = [dict(row) for row in rows]
+        records = [self._convert_row_safe(row) for row in rows]
         return records
     
     def get_total_num_of_query_rows(self, fields, data_dict=None, **kwargs):
@@ -127,7 +144,7 @@ class Client(object):
 
         query_job = self.bqclient_readonly.query(count_sql_string, job_config=self.job_config)
         rows = query_job.result() 
-        records = [dict(row) for row in rows]
+        records = [self._convert_row_safe(row) for row in rows]
         log.warning("records {}".format(records[0]['f0_']))
         return records[0]['f0_']
 
@@ -208,7 +225,7 @@ class Client(object):
         sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max+1)
         query_job = self.bqclient_readonly.query(sql, job_config=self.job_config)
         rows = query_job.result() 
-        records = [dict(row) for row in rows]
+        records = [self._convert_row_safe(row) for row in rows]
         # check if results truncated ...
         if len(records) == rows_max + 1:
            return self.bulk_export(sql_initial)
