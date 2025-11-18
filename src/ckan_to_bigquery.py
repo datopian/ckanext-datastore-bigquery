@@ -242,7 +242,17 @@ class Client(object):
         rows = query_job.result()
         self.log_data['bigquery_job_id'] = query_job.job_id
         self.log_data['job_details'] = query_job._properties.get('statistics')
-        records = [dict(row) for row in rows]
+        records = []
+        for row in rows:
+            dict_row = dict(row)
+            for k in dict_row:
+                if type(dict_row[k]) == int and dict_row[k] > 12345678910:
+                    log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
+                    dict_row[k] = str(dict_row[k])
+                if isinstance(dict_row[k], datetime.date):
+                    log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
+                    dict_row[k] = str(dict_row[k])
+            records.append(dict_row)
         self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
         return records
     
