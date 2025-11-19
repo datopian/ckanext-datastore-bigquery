@@ -23,6 +23,8 @@ from user_agents import parse
 import requests
 import boto3
 from botocore.client import Config
+from decimal import Decimal
+
 log = logging.getLogger(__name__)
 
 def asbool(value):
@@ -173,7 +175,7 @@ class Client(object):
         results = self.search_raw(fields, query_fields, data_dict)
         for item in results:
             for k in item:
-                if type(item[k]) == int and item[k] > 12345678910:
+                if isinstance(item[k], (int, Decimal)) and item[k] > 12345678910:
                     log.warning("Changing key: {} with value {} to string".format(k, item[k]))
                     item[k] = str(item[k])
                 if isinstance(item[k], datetime.date):
@@ -245,9 +247,8 @@ class Client(object):
         records = []
         for row in rows:
             dict_row = dict(row)
-            log.warning("ROW 1: {}".format(dict_row))
             for k in dict_row:
-                if type(dict_row[k]) == int and dict_row[k] > 12345678910:
+                if isinstance(dict_row[k], (int, Decimal)) and dict_row[k] > 12345678910:
                     log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
                     dict_row[k] = str(dict_row[k])
                 if isinstance(dict_row[k], datetime.date):
@@ -376,9 +377,8 @@ class Client(object):
         # in the browser
         for row in rows:
             dict_row = dict(row)
-            log.warning("ROW 2: {}".format(dict_row))
             for k in dict_row:
-                if type(dict_row[k]) == int and dict_row[k] > 12345678910:
+                if isinstance(dict_row[k], (int, Decimal)) and dict_row[k] > 12345678910:
                     log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
                     dict_row[k] = str(dict_row[k])
                 if isinstance(dict_row[k], datetime.date):
