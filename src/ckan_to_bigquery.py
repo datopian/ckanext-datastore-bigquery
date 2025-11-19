@@ -245,7 +245,7 @@ class Client(object):
         records = []
         for row in rows:
             dict_row = dict(row)
-            log.warning("ROW: {}".format(row))
+            log.warning("ROW: {}".format(dict_row))
             for k in dict_row:
                 if type(dict_row[k]) == int and dict_row[k] > 12345678910:
                     log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
@@ -375,8 +375,8 @@ class Client(object):
         # Convert large numbers to strings to avoid them being rounded of
         # in the browser
         for row in rows:
-            log.warning("ROW: {}".format(row))
             dict_row = dict(row)
+            log.warning("ROW: {}".format(dict_row))
             for k in dict_row:
                 if type(dict_row[k]) == int and dict_row[k] > 12345678910:
                     log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
