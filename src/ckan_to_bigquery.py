@@ -313,7 +313,13 @@ class Client(object):
                 single_where_statament = '' 
                 log.warning("filter: {0} = {1}".format(key, value))
                 for value_item in value:
-                    if self.get_field_type(fields, key) == 'num':
+                    if value_item == '' or value_item is None:
+                        field_type = self.get_field_type(fields, key)
+                        if field_type == 'num':
+                            single_where_statament += '{0} IS NULL OR '.format(key)
+                        else:
+                            single_where_statament += '({0} IS NULL OR {0} = "") OR '.format(key)
+                    elif self.get_field_type(fields, key) == 'num':
                         single_where_statament += '{0} = {1} OR '.format(key, value_item)
                     else:
                         single_where_statament += '{0} = "{1}" OR '.format(key, value_item)
