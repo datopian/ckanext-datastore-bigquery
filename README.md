@@ -39,8 +39,10 @@ ckan.datastore.write_url = bigquery://id_of_your_bq_project
 ckan.datastore.read_url = bigquery://id_of_your_bq_project
 ckan.datastore.sqlsearch.enabled = True
 ckanext.bigquery.google_cloud_credentials = path_to_your_cloud_credentials_json_file
+ckanext.bigquery.google_cloud_credentials_read_only = path_to_your_read_only_cloud_credentials_json_file
 ckanext.bigquery.project = id_of_your_bigquery_project
-ckanext.bigquery.dataset id_of_your_bigquery_dataset
+ckanext.bigquery.dataset = id_of_your_bigquery_dataset
+ckanext.bigquery.query_timeout = 60
 
 ```
 
@@ -55,4 +57,3 @@ You can run the tests for standalone instance:
 
 Or you can run tests in an integrated ckan plugin:
 `nosetests -v --ckan --with-pylons=test.ini ckanext`
-

@@ -4,13 +4,33 @@ import os
 from typing import Any
 
 from ckan.common import config
+from ckan.lib.search import SearchError, SearchQueryError
+from ckan.logic import NotAuthorized, NotFound
 from ckanext.datastore.backend import DatastoreBackend
 import ckan.plugins.toolkit as toolkit
+from google.api_core.exceptions import (
+    BadRequest,
+    Forbidden,
+    GatewayTimeout,
+    NotFound as GoogleNotFound,
+    RetryError,
+    ServiceUnavailable,
+    TooManyRequests,
+)
 
 from src import ckan_to_bigquery as ckan2bq
 from src.api_tracker import ga_api_tracker, ga_search_sql_api_tracker
 
 log = logging.getLogger(__name__)
+
+
+RATE_LIMIT_REASONS = {
+    'billingTierLimitExceeded',
+    'quotaExceeded',
+    'rateLimitExceeded',
+    'resourceExhausted',
+}
+
 
 class DatastoreBigQueryBackend(DatastoreBackend):
     def __init__(self):
@@ -42,12 +62,10 @@ class DatastoreBigQueryBackend(DatastoreBackend):
         # we need to call bg2ckan lib -> search
         # we need to mock the resource_id
         engine = self._get_engine()
-        return engine.search(data_dict)
+        return self._execute_query(engine.search, data_dict)
     
     def search_sql(self, context, data_dict):
-        ga_search_sql_api_tracker(data_dict['sql'])
-        # TODO: try / except
-        # TODO: timeouts etc
+        ga_search_sql_api_tracker(data_dict.get('sql', ''))
 
         # TODO: restrict table access (??)
         # table_names = datastore_helpers.get_table_names_from_sql(context, sql)
@@ -59,7 +77,58 @@ class DatastoreBigQueryBackend(DatastoreBackend):
         #    })
         # context['check_access'](table_names)
         engine = self._get_engine()
-        return engine.search_sql(data_dict)
+        return self._execute_query(engine.search_sql, data_dict)
+
+    def _execute_query(self, query, data_dict):
+        try:
+            return query(data_dict)
+        except BadRequest as error:
+            log.info("Invalid BigQuery SQL: %s", error.message)
+            raise SearchQueryError(error.message) from error
+        except GoogleNotFound as error:
+            log.info("BigQuery dataset or table not found: %s", error.message)
+            raise NotFound(
+                "Dataset or table not found: {}".format(error.message)
+            ) from error
+        except TooManyRequests as error:
+            raise SearchError(self._rate_limit_message(error)) from error
+        except Forbidden as error:
+            if self._error_reasons(error) & RATE_LIMIT_REASONS:
+                raise SearchError(self._rate_limit_message(error)) from error
+            log.info("BigQuery access denied: %s", error.message)
+            raise NotAuthorized(
+                "You do not have access to this dataset"
+            ) from error
+        except (GatewayTimeout, TimeoutError) as error:
+            message = str(error) or "Query timed out"
+            raise SearchError(message) from error
+        except RetryError as error:
+            raise SearchError(
+                "BigQuery request failed after retries; try again later"
+            ) from error
+        except ServiceUnavailable as error:
+            raise SearchError(
+                "BigQuery is temporarily unavailable; try again later"
+            ) from error
+
+    @staticmethod
+    def _error_reasons(error):
+        return {
+            item.get('reason')
+            for item in (error.errors or [])
+            if isinstance(item, dict) and item.get('reason')
+        }
+
+    @staticmethod
+    def _rate_limit_message(error):
+        response = getattr(error, 'response', None)
+        headers = getattr(response, 'headers', {}) or {}
+        retry_after = headers.get('retry-after') or headers.get('Retry-After')
+        if retry_after:
+            return "Rate limit exceeded; try again in {} seconds".format(
+                retry_after
+            )
+        return "Rate or quota limit exceeded; try again later"
         
 
     def resource_id_from_alias(self, alias):

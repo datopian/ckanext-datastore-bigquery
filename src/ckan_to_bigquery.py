@@ -11,6 +11,7 @@ from google.api_core.retry import if_exception_type
 
 from ckan import model
 import ckan.logic as logic
+from ckan.lib.search import SearchQueryError
 _get_or_bust = logic.get_or_bust
 NotFound = logic.NotFound
 from ckan.common import config, request, _
@@ -24,6 +25,10 @@ import requests
 import boto3
 from botocore.client import Config
 log = logging.getLogger(__name__)
+
+
+class QueryTimeoutError(TimeoutError):
+    pass
 
 def asbool(value):
     """
@@ -358,13 +363,23 @@ class Client(object):
         log.warning("query - {}".format(sql))
         self.log_data['query'] = sql
         query_job = self.bqclient_readonly.query(sql, job_config=self.job_config)
-        rows = query_job.result() 
+        query_timeout = float(config.get('ckanext.bigquery.query_timeout', 60))
+        try:
+            rows = query_job.result(timeout=query_timeout)
+        except TimeoutError as error:
+            try:
+                query_job.cancel()
+            except Exception:
+                log.warning("Unable to cancel timed-out BigQuery job", exc_info=True)
+            raise QueryTimeoutError(
+                "Query timed out after {:g} seconds".format(query_timeout)
+            ) from error
         self.log_data['bigquery_job_id'] = query_job.job_id
         self.log_data['job_details'] = query_job._properties.get('statistics')
         records = []
         
         if rows.total_rows == rows_max + 1:
-            return self.bulk_export(sql_initial)
+            return self.bulk_export(sql_initial, row_limit=rows_max)
 
         # Convert large numbers to strings to avoid them being rounded of
         # in the browser
@@ -383,7 +398,7 @@ class Client(object):
         self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
         self.create_egress_log()
         # do normal
-        return {
+        result = {
                 "help":"https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
                 "success": "true",
                 "result":{
@@ -391,6 +406,11 @@ class Client(object):
                     "fields": []
                 }
             }
+        if not records:
+            result['result']['message'] = (
+                "Query executed successfully, returned 0 rows"
+            )
+        return result
     
     def _get_table_last_modified_time(self, table_id):
         '''
@@ -462,38 +482,56 @@ class Client(object):
         # default is_bulk export value
         is_bulk = False
         log.warning("Data_dict {}".format(data_dict))
+        resource_id = data_dict.get('resource_id')
+        if not isinstance(resource_id, str) or not resource_id.strip():
+            raise SearchQueryError("resource_id is mandatory")
+        resource_id = resource_id.strip()
+        sql = data_dict.get('sql')
+        if not isinstance(sql, str) or not sql.strip():
+            raise SearchQueryError("sql must be a non-empty string")
+        sql = sql.strip()
+
         import re
-        query_resource_id = re.findall(r'`(.+?)`', data_dict['sql'])[0]
+        table_identifiers = re.findall(r'`(.+?)`', sql)
+        if not table_identifiers:
+            raise SearchQueryError(
+                'SQL must contain a backtick-quoted table identifier, '
+                'for example FROM `{}`'.format(resource_id)
+            )
+        query_resource_id = table_identifiers[0]
         log.warning("query_resource_id {}".format(query_resource_id))
-        
-        if data_dict.get('resource_id'):
-            if query_resource_id != data_dict.get('resource_id'):
-                return {
-                    "success": "false",
-                    "message": "No Resource found for resource id"
-                }
-            context = get_context()
-            resource = resource_show(context, {'id': data_dict.get('resource_id')})
-            if resource:
-                self.resource_details['big_query_resource_name'] = data_dict.get('resource_id')
+
+        if query_resource_id != resource_id:
+            raise SearchQueryError(
+                "SQL table identifier '{}' does not match resource_id '{}'".format(
+                    query_resource_id, resource_id
+                )
+            )
+        context = get_context()
+        resource_show(context, {'id': resource_id})
+        self.resource_details['big_query_resource_name'] = resource_id
+
+        if 'bulk' in data_dict:
+            bulk = data_dict['bulk']
+            if isinstance(bulk, bool):
+                is_bulk = bulk
+            elif isinstance(bulk, int) and bulk in (0, 1):
+                is_bulk = bool(bulk)
+            elif isinstance(bulk, str) and bulk.strip().lower() in (
+                'true', 'false', '1', '0'
+            ):
+                is_bulk = bulk.strip().lower() in ('true', '1')
             else:
-                return {
-                    "success": "false",
-                    "message": "No Resource found for resource id"
-                }
-        if not data_dict.get('resource_id'):
-            return {
-                "success": "false",
-                "message": "resource_id is mandatory"
-            }
-        is_bulk = bool('bulk' in data_dict)
+                raise SearchQueryError(
+                    "bulk must be true or false"
+                )
         log.warning("is_bulk - {}".format(is_bulk))
         if is_bulk:
             # do bulk export
-            return self.bulk_export(data_dict['sql'])
+            return self.bulk_export(sql)
         else:
             log.warning("do standard search_sql")
-            return self.search_sql_normal(data_dict['sql'])
+            return self.search_sql_normal(sql)
     
     # Wait for the destination table to get created
     @retry.Retry(predicate=if_exception_type(exceptions.NotFound),initial=2.0,deadline=8.0)
@@ -526,13 +564,18 @@ class Client(object):
 
 
 
-    def bulk_export(self, sql_initial):
+    def bulk_export(self, sql_initial, row_limit=None):
         result = {
             "help": "https://demo.ckan.org/api/3/action/help_show?name=datastore_search_sql",
             "success": "true",
             "records_truncated": "true",
             "gc_urls": []
         }
+        if row_limit is not None:
+            result['warning'] = (
+                "Query exceeded the maximum inline result limit of {} rows; "
+                "use gc_urls or reduce the result with filters"
+            ).format(row_limit)
         try:
             query_history, encoded_query, table_modified_time = self._query_history_lookup(sql_initial)
             if query_history:
@@ -549,6 +592,7 @@ class Client(object):
                 result['gc_urls'] = destination_urls
             except Exception as e:
                 log.error("An error occurred while getting GCS URL: {}".format(e))
+                raise
         return result
     
 
