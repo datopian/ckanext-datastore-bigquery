@@ -51,6 +51,46 @@ class TestBigQueryIDatastoreBackendPlugin():
         # first = out['result']['records'][0]
         # assert first == expected1
 
+    @patch(u'ckanext.bigquery.backend.bigquery.ga_api_tracker')
+    @patch(u'ckanext.bigquery.backend.bigquery.toolkit.get_action')
+    def test_uuid_resource_id_uses_bigquery_table_name(
+            self, get_action, ga_api_tracker):
+        resource_id = u'e4e5508c-3f9e-4676-b5bb-e126ef724060'
+        resource_show = Mock(return_value={
+            u'bq_table_name': u'EPD_SNOMED_202011'
+        })
+        get_action.return_value = resource_show
+        engine = Mock()
+        engine.search.return_value = {u'resource_id': resource_id}
+        backend = DatastoreBigQueryBackend()
+        backend._get_engine = Mock(return_value=engine)
+        data_dict = {u'resource_id': resource_id, u'limit': 1}
+
+        result = backend.search({}, data_dict)
+
+        resource_show.assert_called_once_with({}, {u'id': resource_id})
+        engine.search.assert_called_once_with({
+            u'resource_id': resource_id,
+            u'bq_table_name': u'EPD_SNOMED_202011',
+            u'limit': 1,
+        })
+        assert_equal(result[u'resource_id'], resource_id)
+        assert_equal(data_dict, {u'resource_id': resource_id, u'limit': 1})
+
+    @patch(u'ckanext.bigquery.backend.bigquery.ga_api_tracker')
+    @patch(u'ckanext.bigquery.backend.bigquery.toolkit.get_action')
+    def test_table_name_resource_id_does_not_call_resource_show(
+            self, get_action, ga_api_tracker):
+        engine = Mock()
+        backend = DatastoreBigQueryBackend()
+        backend._get_engine = Mock(return_value=engine)
+        data_dict = {u'resource_id': u'EPD_SNOMED_202011'}
+
+        backend.search({}, data_dict)
+
+        assert_equal(get_action.call_count, 0)
+        engine.search.assert_called_once_with(data_dict)
+
 expected1 = {
         u'BNF_CODE': u'0304010I0AAAAAA', u'TOTAL_QUANTITY': 56.0, u'POSTCODE': u'PR1 6YA', 
         u'YEAR_MONTH': 201401, u'UNIDENTIFIED': False, u'PRACTICE_NAME': u'ISSA MEDICAL CENTRE - KHAN',

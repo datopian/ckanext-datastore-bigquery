@@ -93,7 +93,7 @@ class Client(object):
             _kwargs = dict(data_dict)
         else:
             _kwargs = kwargs
-        _kwargs['table'] = _kwargs['resource_id']
+        _kwargs['table'] = _kwargs.get('bq_table_name', _kwargs['resource_id'])
         # default for limit is 100
         _kwargs['limit'] =  _kwargs.get('limit', 100)
         if 'distinct' in _kwargs:
@@ -132,7 +132,7 @@ class Client(object):
             _kwargs = dict(data_dict)
         else:
             _kwargs = kwargs
-        _kwargs['table'] = _kwargs['resource_id']
+        _kwargs['table'] = _kwargs.get('bq_table_name', _kwargs['resource_id'])
 
         query = 'SELECT * FROM `{table}` '.format(**_kwargs)
         if 'filters' in _kwargs:
@@ -154,7 +154,7 @@ class Client(object):
             _kwargs = dict(data_dict)
         else:
             _kwargs = kwargs
-        _kwargs['table'] = _kwargs['resource_id']
+        _kwargs['table'] = _kwargs.get('bq_table_name', _kwargs['resource_id'])
 
         query = 'SELECT * FROM `{table}` limit 1 '.format(**_kwargs)
         

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+import uuid
 
 from ckan.common import config
 from ckanext.datastore.backend import DatastoreBackend
@@ -38,8 +39,16 @@ class DatastoreBigQueryBackend(DatastoreBackend):
 
     def search(self, context, data_dict):
         ga_api_tracker(data_dict['resource_id'])
-        # we need to call bg2ckan lib -> search
-        # we need to mock the resource_id
+        try:
+            uuid.UUID(data_dict['resource_id'])
+        except (AttributeError, TypeError, ValueError):
+            pass
+        else:
+            resource = toolkit.get_action('resource_show')(
+                context, {'id': data_dict['resource_id']})
+            data_dict = dict(data_dict)
+            data_dict['bq_table_name'] = resource['bq_table_name']
+
         engine = self._get_engine()
         return engine.search(data_dict)
     
