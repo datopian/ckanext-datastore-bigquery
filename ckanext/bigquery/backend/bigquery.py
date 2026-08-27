@@ -2,6 +2,7 @@
 import logging
 import os
 from typing import Any
+from uuid import UUID
 
 from ckan.common import config
 from ckan.lib.search import SearchError, SearchQueryError
@@ -59,6 +60,23 @@ class DatastoreBigQueryBackend(DatastoreBackend):
 
     def search(self, context, data_dict):
         ga_api_tracker(data_dict['resource_id'])
+        try:
+            UUID(data_dict['resource_id'])
+        except (AttributeError, TypeError, ValueError):
+            pass
+        else:
+            resource = toolkit.get_action('resource_show')(
+                context, {'id': data_dict['resource_id']}
+            )
+            bq_table_name = resource.get('bq_table_name')
+            if not bq_table_name:
+                raise SearchQueryError(
+                    "Resource '{}' has no bq_table_name".format(
+                        data_dict['resource_id']
+                    )
+                )
+            data_dict = dict(data_dict, bq_table_name=bq_table_name)
+
         # we need to call bg2ckan lib -> search
         # we need to mock the resource_id
         engine = self._get_engine()

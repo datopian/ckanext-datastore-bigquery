@@ -146,7 +146,8 @@ class Client(object):
         # Will reduce the API calls by 2 for each call to datastore_search
 
         dataset_ref = self.bqclient_readonly.dataset(self.dataset, project=self.project_id)
-        table_ref = dataset_ref.table(data_dict['resource_id'])
+        table_name = data_dict.get('bq_table_name', data_dict['resource_id'])
+        table_ref = dataset_ref.table(table_name)
         start = str(datetime.datetime.now())
         table_meta_data = self.bqclient_readonly.get_table(table_ref)  # API call
         log.warning("table_meta_data {}".format(table_meta_data))
@@ -154,7 +155,7 @@ class Client(object):
         log.warning('Data_dict {}'.format(data_dict.get('__extras')))
         if '__extras' in data_dict:
             self.log_data['api_call_type'] = data_dict.get('__extras').get('api_call_type')
-        self.resource_details['big_query_resource_name'] = data_dict.get('resource_id')
+        self.resource_details['big_query_resource_name'] = table_name
         if not self.checkUserAgent():
             self.log_data['api_call_type'] = 'direct-api'
         end = str(datetime.datetime.now())
@@ -214,7 +215,7 @@ class Client(object):
             _kwargs = dict(data_dict)
         else:
             _kwargs = kwargs
-        _kwargs['table'] = _kwargs['resource_id']
+        _kwargs['table'] = _kwargs.get('bq_table_name', _kwargs['resource_id'])
         # default for limit is 100
         _kwargs['limit'] =  _kwargs.get('limit', 100)
         if 'distinct' in _kwargs:
@@ -256,7 +257,7 @@ class Client(object):
             _kwargs = dict(data_dict)
         else:
             _kwargs = kwargs
-        _kwargs['table'] = _kwargs['resource_id']
+        _kwargs['table'] = _kwargs.get('bq_table_name', _kwargs['resource_id'])
 
         query = 'SELECT * FROM `{table}` '.format(**_kwargs)
         if 'filters' in _kwargs:

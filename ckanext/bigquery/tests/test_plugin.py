@@ -57,6 +57,61 @@ class TestBigQueryIDatastoreBackendPlugin():
         # assert first == expected1
 
     @patch.object(DatastoreBigQueryBackend, '_get_engine')
+    @patch('ckanext.bigquery.backend.bigquery.toolkit.get_action')
+    def test_search_resolves_uuid_to_bigquery_table(
+            self, get_action, get_engine):
+        resource_id = 'e4e5508c-3f9e-4676-b5bb-e126ef724060'
+        resource_show = get_action.return_value
+        resource_show.return_value = {'bq_table_name': 'EPD_SNOMED_202011'}
+        get_engine.return_value.search.return_value = {
+            'resource_id': resource_id,
+        }
+
+        result = DatastoreBigQueryBackend().search(
+            {'user': 'test'}, {'resource_id': resource_id, 'limit': 1}
+        )
+
+        get_action.assert_called_once_with('resource_show')
+        resource_show.assert_called_once_with(
+            {'user': 'test'}, {'id': resource_id}
+        )
+        get_engine.return_value.search.assert_called_once_with({
+            'resource_id': resource_id,
+            'bq_table_name': 'EPD_SNOMED_202011',
+            'limit': 1,
+        })
+        assert result['resource_id'] == resource_id
+
+    @patch.object(DatastoreBigQueryBackend, '_get_engine')
+    @patch('ckanext.bigquery.backend.bigquery.toolkit.get_action')
+    def test_search_keeps_bigquery_table_resource_id(
+            self, get_action, get_engine):
+        get_engine.return_value.search.return_value = {}
+
+        DatastoreBigQueryBackend().search(
+            {}, {'resource_id': 'EPD_SNOMED_202011'}
+        )
+
+        get_action.assert_not_called()
+        get_engine.return_value.search.assert_called_once_with({
+            'resource_id': 'EPD_SNOMED_202011',
+        })
+
+    @patch('ckanext.bigquery.backend.bigquery.toolkit.get_action')
+    def test_search_uuid_requires_bigquery_table_name(self, get_action):
+        get_action.return_value.return_value = {}
+
+        with pytest.raises(SearchQueryError) as error:
+            DatastoreBigQueryBackend().search({}, {
+                'resource_id': 'e4e5508c-3f9e-4676-b5bb-e126ef724060',
+            })
+
+        assert str(error.value) == (
+            "Resource 'e4e5508c-3f9e-4676-b5bb-e126ef724060' "
+            'has no bq_table_name'
+        )
+
+    @patch.object(DatastoreBigQueryBackend, '_get_engine')
     def test_search_sql_returns_query_error_for_invalid_sql(self, get_engine):
         message = 'Syntax error: Unexpected identifier "FROMM" at [1:10]'
         get_engine.return_value.search_sql.side_effect = BadRequest(message)
