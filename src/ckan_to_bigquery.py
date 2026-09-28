@@ -101,7 +101,7 @@ def upload_to_cloudflare(download_url, key):
         url = get_signed_url(s3_client,bucket_name, key)
         return url
     except Exception as e:
-        print(str(e))
+        log.warning("upload_to_cloudflare failed: {}".format(e))
 
 def get_signed_url(s3, bucket, key):
     filename=key.split('/')[-1]
@@ -150,9 +150,7 @@ class Client(object):
         table_ref = dataset_ref.table(table_name)
         start = str(datetime.datetime.now())
         table_meta_data = self.bqclient_readonly.get_table(table_ref)  # API call
-        log.warning("table_meta_data {}".format(table_meta_data))
         fields = self.table_schema_from_bq_schema(table_meta_data.schema)
-        log.warning('Data_dict {}'.format(data_dict.get('__extras')))
         if '__extras' in data_dict:
             self.log_data['api_call_type'] = data_dict.get('__extras').get('api_call_type')
         self.resource_details['big_query_resource_name'] = table_name
@@ -179,10 +177,10 @@ class Client(object):
         for item in results:
             for k in item:
                 if type(item[k]) == int and item[k] > 12345678910:
-                    log.warning("Changing key: {} with value {} to string".format(k, item[k]))
+                    log.debug("Changing key: {} with value {} to string".format(k, item[k]))
                     item[k] = str(item[k])
                 if isinstance(item[k], datetime.date):
-                    log.warning("Changing key: {} with value {} to string".format(k, item[k]))
+                    log.debug("Changing key: {} with value {} to string".format(k, item[k]))
                     item[k] = str(item[k])
         if self.log_data.get('api_call_type') == 'browser-data-explorer-filter':
             total = self.get_total_num_of_query_rows(fields, data_dict)
@@ -211,7 +209,6 @@ class Client(object):
         Allow passing a dict or key word arguments
         '''
         if data_dict:
-            print(data_dict)
             _kwargs = dict(data_dict)
         else:
             _kwargs = kwargs
@@ -241,7 +238,7 @@ class Client(object):
         query +=  ' LIMIT {limit}'.format(**_kwargs)
         if 'offset' in _kwargs:
             query += ' OFFSET {offset}'.format(**_kwargs)
-        log.warning("query - {}".format(query))
+        log.debug("query - {}".format(query))
         self.log_data['query'] = query
         query_job = self.bqclient_readonly.query(query, job_config=self.job_config)
         rows = query_job.result()
@@ -253,7 +250,6 @@ class Client(object):
     
     def get_total_num_of_query_rows(self, fields, data_dict=None, **kwargs):
         if data_dict:
-            print(data_dict)
             _kwargs = dict(data_dict)
         else:
             _kwargs = kwargs
@@ -261,23 +257,21 @@ class Client(object):
 
         query = 'SELECT * FROM `{table}` '.format(**_kwargs)
         if 'filters' in _kwargs:
-            log.warning("filters in _kwargs")
-            query += ' {0} '.format(self.where_clauses(fields, data_dict))
+                query += ' {0} '.format(self.where_clauses(fields, data_dict))
 
         count_sql_string = 'SELECT count(*) FROM ({0}) AS blah ;'.format(query)
-        log.warning("count_sql_string: {}".format(count_sql_string))
+        log.debug("count_sql_string: {}".format(count_sql_string))
 
         query_job = self.bqclient_readonly.query(count_sql_string, job_config=self.job_config)
         rows = query_job.result() 
         self.log_data['bigquery_job_id'] = query_job.job_id
         records = [dict(row) for row in rows]
-        log.warning("records {}".format(records[0]['f0_']))
+        log.debug("records {}".format(records[0]['f0_']))
         self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
         return records[0]['f0_']
 
     def get_bq_table_schema(self, data_dict=None, **kwargs):
         if data_dict:
-            print(data_dict)
             _kwargs = dict(data_dict)
         else:
             _kwargs = kwargs
@@ -299,14 +293,14 @@ class Client(object):
         string_types = ['STRING']
         #num_types = ['INTEGER', 'FLOAT']
         field_type = [x['type'] for x in fields if x['id'] == field ]
-        log.warning("field_type - {}".format(field_type[0]))
+        log.debug("field_type - {}".format(field_type[0]))
         if field_type[0] in string_types:
             return 'string'
         else:
             return 'num'
 
     def where_clauses(self, fields, data_dict):
-        log.warning("FIELDS: {}".format(fields))
+        log.debug("FIELDS: {}".format(fields))
         filters = data_dict.get('filters', {})
         q = data_dict.get('q')
         if filters or q:
@@ -317,7 +311,7 @@ class Client(object):
             where_filters = ''
             for key, value in filters.items():
                 single_where_statament = '' 
-                log.warning("filter: {0} = {1}".format(key, value))
+                log.debug("filter: {0} = {1}".format(key, value))
                 for value_item in value:
                     if value_item == '' or value_item is None:
                         field_type = self.get_field_type(fields, key)
@@ -330,7 +324,7 @@ class Client(object):
                     else:
                         single_where_statament += '{0} = "{1}" OR '.format(key, value_item)
                 where_filters += '({0}) AND '.format(single_where_statament[:-3]) 
-            log.warning("where_filters: {}".format(where_filters[:-4]))
+            log.debug("where_filters: {}".format(where_filters[:-4]))
             where_str += where_filters[:-4]
         # add full-text search where clause
         if q:
@@ -348,8 +342,7 @@ class Client(object):
         '''
         NB: table must be full table id ...
         '''
-        log.warning("***** search_sql *****")
-        log.warning("sql = {}".format(sql))
+        log.debug("sql = {}".format(sql))
         # limit the number of results to ckan.datastore.search.rows_max + 1
         # (the +1 is so that we know if the results went over the limit or not)
         rows_max = int(config.get('ckan.datastore.search.rows_max', 32000))
@@ -361,7 +354,7 @@ class Client(object):
         # limit the number of results to return by rows_max
         sql = 'SELECT * FROM ({0}) AS blah LIMIT {1} ;'.format(sql, rows_max+1)
 
-        log.warning("query - {}".format(sql))
+        log.debug("query - {}".format(sql))
         self.log_data['query'] = sql
         query_job = self.bqclient_readonly.query(sql, job_config=self.job_config)
         query_timeout = float(config.get('ckanext.bigquery.query_timeout', 60))
@@ -388,13 +381,12 @@ class Client(object):
             dict_row = dict(row)
             for k in dict_row:
                 if type(dict_row[k]) == int and dict_row[k] > 12345678910:
-                    log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
+                    log.debug("Changing key: {} with value {} to string".format(k, dict_row[k]))
                     dict_row[k] = str(dict_row[k])
                 if isinstance(dict_row[k], datetime.date):
-                    log.warning("Changing key: {} with value {} to string".format(k, dict_row[k]))
+                    log.debug("Changing key: {} with value {} to string".format(k, dict_row[k]))
                     dict_row[k] = str(dict_row[k])
-            log.warning("RECORD _ROW: {}".format(dict_row))
-            records.append(dict_row)
+                records.append(dict_row)
 
         self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
         self.create_egress_log()
@@ -482,7 +474,6 @@ class Client(object):
     def search_sql(self, data_dict):
         # default is_bulk export value
         is_bulk = False
-        log.warning("Data_dict {}".format(data_dict))
         resource_id = data_dict.get('resource_id')
         if not isinstance(resource_id, str) or not resource_id.strip():
             raise SearchQueryError("resource_id is mandatory")
@@ -500,7 +491,7 @@ class Client(object):
                 'for example FROM `{}`'.format(resource_id)
             )
         query_resource_id = table_identifiers[0]
-        log.warning("query_resource_id {}".format(query_resource_id))
+        log.debug("query_resource_id {}".format(query_resource_id))
 
         if query_resource_id != resource_id:
             raise SearchQueryError(
@@ -526,18 +517,16 @@ class Client(object):
                 raise SearchQueryError(
                     "bulk must be true or false"
                 )
-        log.warning("is_bulk - {}".format(is_bulk))
         if is_bulk:
             # do bulk export
             return self.bulk_export(sql)
         else:
-            log.warning("do standard search_sql")
             return self.search_sql_normal(sql)
     
     # Wait for the destination table to get created
     @retry.Retry(predicate=if_exception_type(exceptions.NotFound),initial=2.0,deadline=8.0)
     def get_destination_table(self, destination_table):
-        log.warning("Fetching destination table: {}".format(destination_table))
+        log.debug("Fetching destination table: {}".format(destination_table))
         return self.bqclient.get_table(destination_table)
     
 
@@ -550,9 +539,9 @@ class Client(object):
         egress = egress.num_bytes
         self.log_data['bigquery_egress'] = egress
         self.log_data['storage_egress'] = egress
-        log.warning("destination table: {}".format(destination_table))
+        log.debug("destination table: {}".format(destination_table))
         destination_urls = self.extract_query_to_gcs(destination_table, sql_initial)
-        log.warning("extract job result: {}".format(destination_urls))
+        log.debug("extract job result: {}".format(destination_urls))
         self.log_data['bigquery_job_id'] = sql_query_job.job_id
         self.log_data['job_details'] = sql_query_job._properties.get('statistics')
         self.log_data['api_call_type'] = "dataexplorer-bulk-download"
@@ -580,7 +569,7 @@ class Client(object):
         try:
             query_history, encoded_query, table_modified_time = self._query_history_lookup(sql_initial)
             if query_history:
-                log.warning("History Exist: returning datastore query result from history")
+                log.info("History Exist: returning datastore query result from history")
                 result['gc_urls'] = json.loads(query_history[0]['result'])
             else:
                 destination_urls, table_id = self._get_gcs_url(sql_initial)
@@ -624,12 +613,12 @@ class Client(object):
         )  # API request
         res = extract_job.result()  # Waits for job to complete.
         res_destination_uris = res.destination_uris
-        log.warning(
+        log.info(
             "Exported {} to {}".format(table_ref, res_destination_uris)
         )
         # gc blob containing query result prefix 
         prefix = table_ref.table_id+ '/'
-        log.warning("Prefix: {}".format(prefix))
+        log.debug("Prefix: {}".format(prefix))
         res_destination_urls = self.retrieve_gc_urls(bucket_name, prefix)   
         return res_destination_urls
        
@@ -659,7 +648,6 @@ class Client(object):
         environ = request.environ
         agent = environ.get('HTTP_USER_AGENT')
         user_agent = parse(agent)
-        log.warning(user_agent.is_bot)
         if (user_agent.is_pc or \
             user_agent.is_tablet or \
             user_agent.is_mobile or \
