@@ -386,7 +386,7 @@ class Client(object):
                 if isinstance(dict_row[k], datetime.date):
                     log.debug("Changing key: {} with value {} to string".format(k, dict_row[k]))
                     dict_row[k] = str(dict_row[k])
-                records.append(dict_row)
+            records.append(dict_row)
 
         self.log_data['bigquery_egress'] = sys.getsizeof(str(records))
         self.create_egress_log()
