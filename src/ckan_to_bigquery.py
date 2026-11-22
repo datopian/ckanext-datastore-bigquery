@@ -79,7 +79,7 @@ def resource_show(context, data_dict):
         {'id': resource.package.id,
         'include_tracking': asbool(data_dict.get('include_tracking', False))})
     for resource_dict in pkg_dict['resources']:
-        if resource_dict['name'] == name_or_id:
+        if resource_dict['id'] == resource.id:
             break
     else:
         log.error('Could not find resource %s after all', name_or_id)
@@ -493,15 +493,20 @@ class Client(object):
         query_resource_id = table_identifiers[0]
         log.debug("query_resource_id {}".format(query_resource_id))
 
-        if query_resource_id != resource_id:
+        # bq_table_name is set by the backend after it resolved a resource
+        # UUID (and checked access) through CKAN's resource_show.
+        bq_table_name = data_dict.get('bq_table_name')
+        table_name = bq_table_name or resource_id
+        if query_resource_id != table_name:
             raise SearchQueryError(
                 "SQL table identifier '{}' does not match resource_id '{}'".format(
                     query_resource_id, resource_id
                 )
             )
-        context = get_context()
-        resource_show(context, {'id': resource_id})
-        self.resource_details['big_query_resource_name'] = resource_id
+        if not bq_table_name:
+            context = get_context()
+            resource_show(context, {'id': resource_id})
+        self.resource_details['big_query_resource_name'] = table_name
 
         if 'bulk' in data_dict:
             bulk = data_dict['bulk']
