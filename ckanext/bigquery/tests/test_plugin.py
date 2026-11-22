@@ -112,6 +112,126 @@ class TestBigQueryIDatastoreBackendPlugin():
         )
 
     @patch.object(DatastoreBigQueryBackend, '_get_engine')
+    @patch('ckanext.bigquery.backend.bigquery.toolkit.get_action')
+    def test_search_sql_resolves_uuid_to_bigquery_table(
+            self, get_action, get_engine):
+        resource_id = 'dd189269-6918-437f-b7af-bd544d5a83a8'
+        resource_show = get_action.return_value
+        resource_show.return_value = {
+            'bq_table_name': 'SCMD_PROVISIONAL_202603',
+        }
+        get_engine.return_value.search_sql.return_value = {'records': []}
+
+        DatastoreBigQueryBackend().search_sql({'user': 'test'}, {
+            'resource_id': ' {} '.format(resource_id),
+            'sql': 'SELECT * FROM `{}` LIMIT 5'.format(resource_id),
+        })
+
+        get_action.assert_called_once_with('resource_show')
+        resource_show.assert_called_once_with(
+            {'user': 'test'}, {'id': resource_id}
+        )
+        get_engine.return_value.search_sql.assert_called_once_with({
+            'resource_id': resource_id,
+            'bq_table_name': 'SCMD_PROVISIONAL_202603',
+            'sql': 'SELECT * FROM `SCMD_PROVISIONAL_202603` LIMIT 5',
+        })
+
+    @patch.object(DatastoreBigQueryBackend, '_get_engine')
+    @patch('ckanext.bigquery.backend.bigquery.toolkit.get_action')
+    def test_search_sql_keeps_bigquery_table_resource_id(
+            self, get_action, get_engine):
+        data_dict = {
+            'resource_id': 'SCMD_PROVISIONAL_202602',
+            'sql': 'SELECT * FROM `SCMD_PROVISIONAL_202602` LIMIT 5',
+        }
+
+        DatastoreBigQueryBackend().search_sql({}, dict(data_dict))
+
+        get_action.assert_not_called()
+        get_engine.return_value.search_sql.assert_called_once_with(data_dict)
+
+    @patch.object(DatastoreBigQueryBackend, '_get_engine')
+    @patch('ckanext.bigquery.backend.bigquery.toolkit.get_action')
+    def test_search_sql_drops_client_supplied_bigquery_table_name(
+            self, get_action, get_engine):
+        DatastoreBigQueryBackend().search_sql({}, {
+            'resource_id': 'PUBLIC_TABLE',
+            'bq_table_name': 'PRIVATE_TABLE',
+            'sql': 'SELECT * FROM `PRIVATE_TABLE`',
+        })
+
+        get_engine.return_value.search_sql.assert_called_once_with({
+            'resource_id': 'PUBLIC_TABLE',
+            'sql': 'SELECT * FROM `PRIVATE_TABLE`',
+        })
+
+    @patch('ckanext.bigquery.backend.bigquery.toolkit.get_action')
+    def test_search_sql_uuid_requires_bigquery_table_name(self, get_action):
+        get_action.return_value.return_value = {}
+
+        with pytest.raises(SearchQueryError) as error:
+            DatastoreBigQueryBackend().search_sql({}, {
+                'resource_id': 'dd189269-6918-437f-b7af-bd544d5a83a8',
+                'sql': 'SELECT * FROM `dd189269-6918-437f-b7af-bd544d5a83a8`',
+            })
+
+        assert 'has no bq_table_name' in str(error.value)
+
+    @patch('src.ckan_to_bigquery.resource_show')
+    @patch('src.ckan_to_bigquery.get_context', return_value={})
+    def test_client_search_sql_skips_lookup_for_resolved_table(
+            self, get_context, resource_show):
+        client = Client.__new__(Client)
+        client.resource_details = {}
+        client.search_sql_normal = Mock(return_value='normal result')
+
+        result = client.search_sql({
+            'resource_id': 'dd189269-6918-437f-b7af-bd544d5a83a8',
+            'bq_table_name': 'SCMD_PROVISIONAL_202603',
+            'sql': 'SELECT * FROM `SCMD_PROVISIONAL_202603` LIMIT 5',
+        })
+
+        assert result == 'normal result'
+        resource_show.assert_not_called()
+        client.search_sql_normal.assert_called_once_with(
+            'SELECT * FROM `SCMD_PROVISIONAL_202603` LIMIT 5'
+        )
+        assert client.resource_details['big_query_resource_name'] == (
+            'SCMD_PROVISIONAL_202603'
+        )
+
+    def test_client_search_sql_rejects_other_table_for_resolved_uuid(self):
+        with pytest.raises(SearchQueryError) as error:
+            Client.search_sql(object(), {
+                'resource_id': 'dd189269-6918-437f-b7af-bd544d5a83a8',
+                'bq_table_name': 'SCMD_PROVISIONAL_202603',
+                'sql': 'SELECT * FROM `PCA_202501`',
+            })
+
+        assert "does not match resource_id" in str(error.value)
+
+    @patch('src.ckan_to_bigquery.logic.get_action')
+    def test_resource_show_matches_resource_by_id(self, get_action):
+        from src.ckan_to_bigquery import resource_show
+        resource = SimpleNamespace(
+            id='dd189269-6918-437f-b7af-bd544d5a83a8',
+            state='active',
+            package=SimpleNamespace(id='pkg-id'),
+        )
+        model = SimpleNamespace(
+            Resource=SimpleNamespace(get=Mock(return_value=resource)),
+        )
+        get_action.return_value.return_value = {'resources': [
+            {'id': 'other', 'name': 'SCMD_PROVISIONAL_202602'},
+            {'id': resource.id, 'name': 'SCMD_PROVISIONAL_202603'},
+        ]}
+
+        result = resource_show({'model': model}, {'id': resource.id})
+
+        assert result['name'] == 'SCMD_PROVISIONAL_202603'
+
+    @patch.object(DatastoreBigQueryBackend, '_get_engine')
     def test_search_sql_returns_query_error_for_invalid_sql(self, get_engine):
         message = 'Syntax error: Unexpected identifier "FROMM" at [1:10]'
         get_engine.return_value.search_sql.side_effect = BadRequest(message)

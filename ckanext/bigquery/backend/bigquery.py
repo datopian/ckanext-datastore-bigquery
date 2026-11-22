@@ -58,42 +58,71 @@ class DatastoreBigQueryBackend(DatastoreBackend):
         else:
             raise Exception(message)
 
+    def _resolve_bq_table_name(self, context, resource_id):
+        '''Return the BigQuery table name for a CKAN resource UUID.
+
+        Returns None when ``resource_id`` is not a UUID, i.e. it is already a
+        BigQuery table name (legacy behaviour).
+        '''
+        try:
+            UUID(resource_id)
+        except (AttributeError, TypeError, ValueError):
+            return None
+
+        resource = toolkit.get_action('resource_show')(
+            context, {'id': resource_id}
+        )
+        bq_table_name = resource.get('bq_table_name')
+        if not bq_table_name:
+            raise SearchQueryError(
+                "Resource '{}' has no bq_table_name".format(resource_id)
+            )
+        return bq_table_name
+
     def search(self, context, data_dict):
         ga_api_tracker(data_dict['resource_id'])
-        try:
-            UUID(data_dict['resource_id'])
-        except (AttributeError, TypeError, ValueError):
-            pass
-        else:
-            resource = toolkit.get_action('resource_show')(
-                context, {'id': data_dict['resource_id']}
-            )
-            bq_table_name = resource.get('bq_table_name')
-            if not bq_table_name:
-                raise SearchQueryError(
-                    "Resource '{}' has no bq_table_name".format(
-                        data_dict['resource_id']
-                    )
-                )
+        # bq_table_name is internal; never trust a client-supplied value.
+        data_dict = {
+            k: v for k, v in data_dict.items() if k != 'bq_table_name'
+        }
+        bq_table_name = self._resolve_bq_table_name(
+            context, data_dict['resource_id']
+        )
+        if bq_table_name:
             data_dict = dict(data_dict, bq_table_name=bq_table_name)
 
         # we need to call bg2ckan lib -> search
         # we need to mock the resource_id
         engine = self._get_engine()
         return self._execute_query(engine.search, data_dict)
-    
+
     def search_sql(self, context, data_dict):
         ga_search_sql_api_tracker(data_dict.get('sql', ''))
+        # bq_table_name is internal: Client.search_sql skips its access check
+        # when it is set, so never trust a client-supplied value.
+        data_dict = {
+            k: v for k, v in data_dict.items() if k != 'bq_table_name'
+        }
 
-        # TODO: restrict table access (??)
-        # table_names = datastore_helpers.get_table_names_from_sql(context, sql)
-        # log.debug('Tables involved in input SQL: {0!r}'.format(table_names))
+        resource_id = data_dict.get('resource_id')
+        if isinstance(resource_id, str):
+            resource_id = resource_id.strip()
+        bq_table_name = self._resolve_bq_table_name(context, resource_id)
+        if bq_table_name:
+            # resource_show above already checked the user can read the
+            # resource. Point the backtick-quoted UUID at the real table.
+            sql = data_dict.get('sql')
+            if isinstance(sql, str):
+                sql = sql.replace(
+                    '`{}`'.format(resource_id), '`{}`'.format(bq_table_name)
+                )
+            data_dict = dict(
+                data_dict,
+                resource_id=resource_id,
+                sql=sql,
+                bq_table_name=bq_table_name,
+            )
 
-        # if any(t.startswith('pg_') for t in table_names):
-        #    raise toolkit.NotAuthorized({
-        #        'permissions': ['Not authorized to access system tables']
-        #    })
-        # context['check_access'](table_names)
         engine = self._get_engine()
         return self._execute_query(engine.search_sql, data_dict)
 
