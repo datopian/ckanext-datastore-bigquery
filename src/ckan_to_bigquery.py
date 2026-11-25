@@ -118,6 +118,19 @@ def get_signed_url(s3, bucket, key):
     except Exception as e:
         pass
 
+def requested_fields(fields):
+    '''Return the field names requested by a datastore_search call.
+
+    CKAN passes ``fields`` through as either a list or a comma separated
+    string. Split the string so columns are matched by exact name; a
+    substring check on the raw string would also select e.g. ``QUANTITY``
+    when only ``TOTAL_QUANTITY`` was asked for.
+    '''
+    if isinstance(fields, str):
+        fields = fields.split(',')
+    return {str(field).strip() for field in fields or []}
+
+
 class Client(object):
     def __init__(self, project_id, dataset, creds, read_only_creds):
         self.project_id = project_id
@@ -167,7 +180,7 @@ class Client(object):
         query_fields = []
         if len(data_dict.get('fields', [])) > 0:
             
-            data_fields = data_dict.get('fields')
+            data_fields = requested_fields(data_dict.get('fields'))
             for x in fields:
                 if x['id'] in data_fields:
                     field = {'id' : x['id'], 'type' : x['type']}
