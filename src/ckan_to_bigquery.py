@@ -58,9 +58,42 @@ def get_context():
     }
 
 
+def _active_resources_by_name(model, name):
+    '''Return active resources called ``name`` in active datasets.
+
+    Resources in public datasets come first, then the most recently created.
+    '''
+    return (
+        model.Session.query(model.Resource)
+        .join(model.Package, model.Package.id == model.Resource.package_id)
+        .filter(model.Resource.name == name)
+        .filter(model.Resource.state == 'active')
+        .filter(model.Package.state == 'active')
+        .order_by(model.Package.private, model.Resource.created.desc())
+        .all()
+    )
+
+
+def _show_resource(context, resource, include_tracking):
+    pkg_dict = logic.get_action('package_show')(
+        dict(context),
+        {'id': resource.package.id, 'include_tracking': include_tracking})
+    for resource_dict in pkg_dict['resources']:
+        if resource_dict['id'] == resource.id:
+            return resource_dict
+    log.error('Could not find resource %s after all', resource.id)
+    raise NotFound(_('Resource was not found.'))
+
+
 def resource_show(context, data_dict):
     '''Return the metadata of a resource.
-    :param id: the id of the resource
+
+    ``id`` may be a resource id or a resource name. Several resources can
+    share a name (e.g. a copy in a private test dataset), so a name returns
+    the first active one the user is allowed to read, preferring public
+    datasets.
+
+    :param id: the id or name of the resource
     :type id: string
     :param include_tracking: add tracking information to dataset and
         resources (default: ``False``)
@@ -69,23 +102,21 @@ def resource_show(context, data_dict):
     '''
     model = context['model']
     name_or_id = data_dict.get("id") or _get_or_bust(data_dict, 'name_or_id')
-    resource = model.Resource.get(name_or_id)
-    if resource and resource.state == 'deleted':
-        resource = model.Session.query(model.Resource).filter(model.Resource.name == name_or_id).filter( model.Resource.state == 'active').first()
-    if not resource:
-        raise NotFound
-    pkg_dict = logic.get_action('package_show')(
-        dict(context),
-        {'id': resource.package.id,
-        'include_tracking': asbool(data_dict.get('include_tracking', False))})
-    for resource_dict in pkg_dict['resources']:
-        if resource_dict['id'] == resource.id:
-            break
-    else:
-        log.error('Could not find resource %s after all', name_or_id)
-        raise NotFound(_('Resource was not found.'))
+    include_tracking = asbool(data_dict.get('include_tracking', False))
 
-    return resource_dict
+    resource = model.Session.query(model.Resource).get(name_or_id)
+    if resource and resource.state != 'deleted':
+        return _show_resource(context, resource, include_tracking)
+
+    not_authorized = None
+    for resource in _active_resources_by_name(model, name_or_id):
+        try:
+            return _show_resource(context, resource, include_tracking)
+        except logic.NotAuthorized as e:
+            not_authorized = not_authorized or e
+    if not_authorized:
+        raise not_authorized
+    raise NotFound(_('Resource was not found.'))
 
 def upload_to_cloudflare(download_url, key):
     endpoint_url = config.get('ckanext.cloudflare.endpoint', '')
