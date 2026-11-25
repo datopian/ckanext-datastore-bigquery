@@ -29,6 +29,20 @@ class_to_patch = (
     'bigquery.DatastoreBigQueryBackend'
 )
 
+def _resource(resource_id, package_id, state='active'):
+    return SimpleNamespace(
+        id=resource_id, state=state, package=SimpleNamespace(id=package_id))
+
+
+def _model_with_resource_by_id(resource):
+    query = Mock()
+    query.get.return_value = resource
+    return SimpleNamespace(
+        Resource=object(),
+        Session=SimpleNamespace(query=Mock(return_value=query)),
+    )
+
+
 class TestBigQueryIDatastoreBackendPlugin():
     def test_backends_correctly_registered(self):
         DatastoreBackend.register_backends()
@@ -219,9 +233,7 @@ class TestBigQueryIDatastoreBackendPlugin():
             state='active',
             package=SimpleNamespace(id='pkg-id'),
         )
-        model = SimpleNamespace(
-            Resource=SimpleNamespace(get=Mock(return_value=resource)),
-        )
+        model = _model_with_resource_by_id(resource)
         get_action.return_value.return_value = {'resources': [
             {'id': 'other', 'name': 'SCMD_PROVISIONAL_202602'},
             {'id': resource.id, 'name': 'SCMD_PROVISIONAL_202603'},
@@ -230,6 +242,65 @@ class TestBigQueryIDatastoreBackendPlugin():
         result = resource_show({'model': model}, {'id': resource.id})
 
         assert result['name'] == 'SCMD_PROVISIONAL_202603'
+
+    @patch('src.ckan_to_bigquery._active_resources_by_name')
+    @patch('src.ckan_to_bigquery.logic.get_action')
+    def test_resource_show_by_name_skips_unreadable_duplicates(
+            self, get_action, by_name):
+        from src.ckan_to_bigquery import resource_show
+        private = _resource('private-res', 'private-pkg')
+        public = _resource('public-res', 'public-pkg')
+        by_name.return_value = [private, public]
+
+        def package_show(context, data_dict):
+            if data_dict['id'] == 'private-pkg':
+                raise NotAuthorized('not authorised to read private-pkg')
+            return {'resources': [
+                {'id': 'public-res', 'name': 'SCMD_PROVISIONAL_202502'}]}
+        get_action.return_value.side_effect = package_show
+
+        result = resource_show(
+            {'model': _model_with_resource_by_id(None)},
+            {'id': 'SCMD_PROVISIONAL_202502'})
+
+        assert result['id'] == 'public-res'
+        by_name.assert_called_once()
+
+    @patch('src.ckan_to_bigquery._active_resources_by_name')
+    @patch('src.ckan_to_bigquery.logic.get_action')
+    def test_resource_show_by_name_raises_when_none_readable(
+            self, get_action, by_name):
+        from src.ckan_to_bigquery import resource_show
+        by_name.return_value = [_resource('private-res', 'private-pkg')]
+        get_action.return_value.side_effect = NotAuthorized('denied')
+
+        with pytest.raises(NotAuthorized):
+            resource_show(
+                {'model': _model_with_resource_by_id(None)},
+                {'id': 'SCMD_PROVISIONAL_202502'})
+
+    @patch('src.ckan_to_bigquery._active_resources_by_name', return_value=[])
+    def test_resource_show_by_name_raises_not_found(self, by_name):
+        from src.ckan_to_bigquery import resource_show
+
+        with pytest.raises(NotFound):
+            resource_show(
+                {'model': _model_with_resource_by_id(None)},
+                {'id': 'NO_SUCH_TABLE'})
+
+    @patch('src.ckan_to_bigquery._active_resources_by_name')
+    @patch('src.ckan_to_bigquery.logic.get_action')
+    def test_resource_show_deleted_id_falls_back_to_name(
+            self, get_action, by_name):
+        from src.ckan_to_bigquery import resource_show
+        deleted = _resource('res-id', 'pkg-id', state='deleted')
+        by_name.return_value = []
+
+        with pytest.raises(NotFound):
+            resource_show(
+                {'model': _model_with_resource_by_id(deleted)},
+                {'id': 'res-id'})
+        get_action.assert_not_called()
 
     @patch.object(DatastoreBigQueryBackend, '_get_engine')
     def test_search_sql_returns_query_error_for_invalid_sql(self, get_engine):
